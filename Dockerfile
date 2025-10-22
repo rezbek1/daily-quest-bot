@@ -16,7 +16,7 @@ RUN npm ci --only=production
 # COPY src/ ./src/
 
 # Скопировать environment файл
-COPY .env .env
+
 
 # Переменные окружения по умолчанию
 ENV NODE_ENV=production
