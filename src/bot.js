@@ -372,7 +372,7 @@ bot.command('quests', async (ctx) => {
     return;
   }
 
-  let message = `📋 АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
+  let message = `📋 ТВИ АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
   message += `${'━'.repeat(40)}\n\n`;
 
   for (const quest of quests) {
@@ -653,30 +653,147 @@ bot.action(/delete_(.+)/, async (ctx) => {
 });
 
 /**
- * Кнопки главного меню
+ * Кнопки главного меню - ВЫПОЛНЯЮТ ЛОГИКУ
  */
+
 bot.action('menu_add', async (ctx) => {
   await ctx.reply('📝 Напиши: /addtask Описание\n\nПример: /addtask отправить письмо боссу', getMainMenuKeyboard());
   await ctx.answerCbQuery();
 });
 
 bot.action('menu_quests', async (ctx) => {
-  await bot.telegram.sendMessage(ctx.from.id, '/quests');
+  const userId = ctx.from.id;
+  const quests = await getActiveQuests(userId);
+
+  if (quests.length === 0) {
+    await ctx.answerCbQuery('📭 Нет квестов', true);
+    return;
+  }
+
+  let message = `📋 ТВИ АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
+  message += `${'━'.repeat(40)}\n\n`;
+
+  for (const quest of quests) {
+    const difficulty = '⭐'.repeat(Math.min(Math.floor(quest.xp / 20), 5));
+    message += `#${quest.questNumber} 💀 ${quest.title}\n`;
+    message += `"${quest.story.substring(0, 80)}..."\n`;
+    message += `${difficulty} +${quest.xp} XP\n`;
+    message += `[✅ #${quest.questNumber}] [🗑️ #${quest.questNumber}]\n\n`;
+  }
+
+  message += `${'━'.repeat(40)}`;
+
+  const buttons = quests.map((quest) => [
+    Markup.button.callback(`✅ #${quest.questNumber}`, `done_${quest.id}`),
+    Markup.button.callback(`🗑️ #${quest.questNumber}`, `delete_${quest.id}`),
+  ]);
+
+  const keyboard = Markup.inlineKeyboard([
+    ...buttons,
+    ...getMainMenuKeyboard().reply_markup.inline_keyboard,
+  ]);
+
+  await ctx.reply(message, keyboard);
   await ctx.answerCbQuery();
 });
 
 bot.action('menu_profile', async (ctx) => {
-  await bot.telegram.sendMessage(ctx.from.id, '/profile');
+  const userId = ctx.from.id;
+  const user = await getUser(userId);
+
+  if (!user) {
+    await ctx.answerCbQuery('❌ Ошибка', true);
+    return;
+  }
+
+  const profileMessage = `👤 ПРОФИЛЬ: ${user.name}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 ОСНОВНЫЕ СТАТИСТИКИ
+Уровень: ${user.level} ${'💀'.repeat(Math.min(user.level, 5))}
+Опыт: ${user.xp}/${user.level * 300} XP (${Math.round((user.xp % 300) / 3)}%)
+
+📈 ПРОГРЕСС
+✅ Всего квестов: ${user.totalQuestsCompleted}
+🔥 Streak: ${user.streak} дней
+
+🏆 БЕЙДЖИ: ${user.badges.join(', ')}
+
+⚙️ НАСТРОЙКИ
+🎨 Тема: ${user.theme}
+🔔 Напоминания: ${user.settings.reminderTime}
+🌍 Язык: ${user.settings.language}`;
+
+  await ctx.reply(profileMessage, getMainMenuKeyboard());
   await ctx.answerCbQuery();
 });
 
 bot.action('menu_stats', async (ctx) => {
-  await bot.telegram.sendMessage(ctx.from.id, '/stats');
+  const userId = ctx.from.id;
+  const user = await getUser(userId);
+  const activeQuests = await getActiveQuests(userId);
+
+  if (!user) {
+    await ctx.answerCbQuery('❌ Ошибка', true);
+    return;
+  }
+
+  let statsMessage = `📊 СТАТИСТИКА
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👤 ${user.name}
+Уровень: ${user.level}
+Всего XP: ${user.xp}
+Квестов выполнено: ${user.totalQuestsCompleted}
+
+🎯 СЕЙЧАС В РАБОТЕ: ${activeQuests.length} квестов`;
+
+  if (activeQuests.length > 0 && activeQuests.length <= 5) {
+    statsMessage += `\n${'─'.repeat(40)}\n`;
+    activeQuests.forEach((quest) => {
+      statsMessage += `#${quest.questNumber} ${quest.title}\n`;
+    });
+  }
+
+  statsMessage += `
+
+${'━'.repeat(40)}
+
+📈 ЭФФЕКТИВНОСТЬ: ${user.totalQuestsCompleted > 0 ? '95%' : '0%'}
+
+🎯 АКТИВНОСТЬ
+Дней в игре: ${Math.floor((new Date() - user.createdAt.toDate()) / (1000 * 60 * 60 * 24))}
+Streak: ${user.streak} дней
+
+💡 Больше квестов → больше XP → больше уровней → 🖤`;
+
+  await ctx.reply(statsMessage, getMainMenuKeyboard());
   await ctx.answerCbQuery();
 });
 
 bot.action('menu_help', async (ctx) => {
-  await bot.telegram.sendMessage(ctx.from.id, '/help');
+  const helpMessage = `❓ СПРАВКА ПО КОМАНДАМ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 УПРАВЛЕНИЕ КВЕСТАМИ:
+/addtask [описание] — создать квест
+/quests — все квесты
+/today — квесты на сегодня
+
+👤 ПРОФИЛЬ И ПРОГРЕСС:
+/profile — профиль
+/stats — статистика
+
+🏆 ОБЩЕСТВЕННОЕ:
+/leaderboard — лидерборд
+
+💡 КАК ЭТО РАБОТАЕТ:
+1. /addtask + описание
+2. ChatGPT превратит в квест
+3. Нажми кнопку → готово!
+4. +XP и новый уровень!`;
+
+  await ctx.reply(helpMessage, getMainMenuKeyboard());
   await ctx.answerCbQuery();
 });
 
