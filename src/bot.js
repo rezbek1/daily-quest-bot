@@ -5,7 +5,7 @@
  * Главный файл: bot.js
  */
 
-const { Telegraf, session } = require('telegraf');
+const { Telegraf, session, Markup } = require('telegraf');
 const dotenv = require('dotenv');
 const winston = require('winston');
 const admin = require('firebase-admin');
