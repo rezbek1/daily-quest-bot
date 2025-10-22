@@ -248,11 +248,20 @@ async function createQuest(userId, taskDescription) {
 
     const story = await generateQuestStory(taskDescription, user.theme);
 
-    // Определить XP в зависимости от длины описания
+    // Определить XP
     const words = taskDescription.split(' ').length;
     let xp = 15;
     if (words < 5) xp = 10;
     else if (words > 20) xp = 30;
+
+    // Получить номер квеста для этого пользователя
+    const userQuestsSnapshot = await db
+      .collection('quests')
+      .where('userId', '==', userId.toString())
+      .where('completed', '==', false)
+      .get();
+    
+    const questNumber = userQuestsSnapshot.size + 1; // ← НОВОЕ: номер квеста
 
     const questId = `quest_${userId}_${Date.now()}`;
     const questRef = db.collection('quests').doc(questId);
@@ -260,6 +269,7 @@ async function createQuest(userId, taskDescription) {
     await questRef.set({
       questId,
       userId: userId.toString(),
+      questNumber,        // ← НОВОЕ: сохраняем номер
       title: taskDescription,
       story,
       xp,
@@ -275,6 +285,7 @@ async function createQuest(userId, taskDescription) {
       title: taskDescription,
       story,
       xp,
+      questNumber,        // ← НОВОЕ: возвращаем номер
     };
   } catch (error) {
     logger.error('❌ Ошибка создания квеста:', error);
@@ -441,23 +452,28 @@ bot.command('addtask', async (ctx) => {
     return;
   }
 
+  // ← НОВОЕ: кнопка "Выполнено"
+  const keyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Выполнено!', `done_${quest.id}`)],
+  ]);
+
   const questMessage = `
-✅ КВЕСТ СОЗДАН! (Приказ от начальства эпичной прокачки)
+✅ КВЕСТ #${quest.questNumber} СОЗДАН!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📜 СЮЖЕТ:
-${quest.story}
+📜 ${quest.title}
+
+"${quest.story}"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🎁 НАГРАДА: +${quest.xp} XP
 ⏱️ СТАТУС: Активен
 
-Выполни: /quests чтобы увидеть все квесты
-Завершить: /done [номер]
+Нажми кнопку когда выполнишь!
   `;
 
-  await ctx.reply(questMessage);
+  await ctx.reply(questMessage, keyboard);
 });
 
 /**
@@ -470,54 +486,33 @@ bot.command('quests', async (ctx) => {
 
   if (quests.length === 0) {
     await ctx.reply(
-      '📭 У тебя нет активных квестов!\nСоздай первый: /addtask Описание твоей задачи'
+      '📭 У тебя нет активных квестов!\n\nСоздай первый: /addtask Описание твоей задачи'
     );
     return;
   }
 
-  let message = `📋 ТВИ НЕВЫПОЛНЕННЫЕ ОБЯЗАТЕЛЬСТВА (${quests.length})\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  // Показываем каждый квест отдельным сообщением с кнопкой
+  for (const quest of quests) {
+    const difficulty = '⭐'.repeat(Math.min(Math.floor(quest.xp / 20), 5));
+    
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('✅ Выполнено!', `done_${quest.id}`)],
+      [Markup.button.callback('🗑️ Удалить', `delete_${quest.id}`)],
+    ]);
 
-  quests.forEach((quest, index) => {
-    const difficultyStars = '⭐'.repeat(
-      Math.min(Math.floor(quest.xp / 20), 5)
-    );
-    message += `${index + 1}️⃣ 💀 ${quest.title}\n`;
-    message += `"${quest.story.substring(0, 80)}..."\n`;
-    message += `Награда: ${quest.xp} XP | ${difficultyStars}\n`;
-    message += `→ Выполнить: /done ${index + 1}\n`;
-    message += `\n`;
-  });
+    const questText = `
+#${quest.questNumber} 💀 ${quest.title}
 
-  message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `\n🎯 Выполни квест командой: /done [номер]\n`;
-  message += `Пример: /done 1\n\n`;
-  message += `[Добавить ещё боль] /addtask`;
+"${quest.story.substring(0, 100)}..."
 
-  await ctx.reply(message);
+🎁 Награда: ${quest.xp} XP | ${difficulty}
+    `;
+
+    await ctx.reply(questText, keyboard);
+  }
+
+  await ctx.reply(`\n📊 Всего активных: ${quests.length}`);
 });
-
-/**
- * /done [номер] - Завершить квест (ИСПРАВЛЕНО)
- */
-bot.command('done', async (ctx) => {
-  const userId = ctx.from.id;
-  const args = ctx.message.text.replace('/done ', '').trim();
-
-  if (!args) {
-    const quests = await getActiveQuests(userId);
-    if (quests.length === 0) {
-      await ctx.reply('📭 Нет квестов для завершения');
-      return;
-    }
-
-    let message = 'Выбери квест для завершения:\n\n';
-    quests.forEach((quest, index) => {
-      message += `/done ${index + 1} - ${quest.title}\n`;
-    });
-
-    await ctx.reply(message);
-    return;
-  }
 
   // Получить номер квеста
   const questNumber = parseInt(args, 10);
