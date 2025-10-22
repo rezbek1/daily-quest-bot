@@ -3,6 +3,7 @@
  * Для циничных бизнесменов, которые ненавидят свою работу
  * 
  * Главный файл: bot.js
+ * Версия с inline кнопками (без /done команд)
  */
 
 const { Telegraf, session, Markup } = require('telegraf');
@@ -44,14 +45,13 @@ try {
   admin.initializeApp({
     credential: admin.credential.cert(FIREBASE_CONFIG),
   });
-  const db = admin.firestore();
-  logger.info('✅ Firebase инициализирован');
 } catch (error) {
   logger.error('❌ Ошибка Firebase:', error);
   process.exit(1);
 }
 
 const db = admin.firestore();
+logger.info('✅ Firebase инициализирован');
 
 // ==================== TELEGRAM БОТ ====================
 
@@ -248,7 +248,7 @@ async function createQuest(userId, taskDescription) {
 
     const story = await generateQuestStory(taskDescription, user.theme);
 
-    // Определить XP
+    // Определить XP в зависимости от длины описания
     const words = taskDescription.split(' ').length;
     let xp = 15;
     if (words < 5) xp = 10;
@@ -261,7 +261,7 @@ async function createQuest(userId, taskDescription) {
       .where('completed', '==', false)
       .get();
     
-    const questNumber = userQuestsSnapshot.size + 1; // ← НОВОЕ: номер квеста
+    const questNumber = userQuestsSnapshot.size + 1;
 
     const questId = `quest_${userId}_${Date.now()}`;
     const questRef = db.collection('quests').doc(questId);
@@ -269,7 +269,7 @@ async function createQuest(userId, taskDescription) {
     await questRef.set({
       questId,
       userId: userId.toString(),
-      questNumber,        // ← НОВОЕ: сохраняем номер
+      questNumber,
       title: taskDescription,
       story,
       xp,
@@ -279,13 +279,13 @@ async function createQuest(userId, taskDescription) {
       completedAt: null,
     });
 
-    logger.info(`✅ Квест создан: ${questId}`);
+    logger.info(`✅ Квест #${questNumber} создан: ${questId}`);
     return {
       id: questId,
       title: taskDescription,
       story,
       xp,
-      questNumber,        // ← НОВОЕ: возвращаем номер
+      questNumber,
     };
   } catch (error) {
     logger.error('❌ Ошибка создания квеста:', error);
@@ -322,7 +322,7 @@ async function getActiveQuests(userId) {
 }
 
 /**
- * Завершить квест (ИСПРАВЛЕНО)
+ * Завершить квест
  */
 async function completeQuest(userId, questId) {
   try {
@@ -375,13 +375,14 @@ async function completeQuest(userId, questId) {
       timestamp: new Date(),
     });
 
-    logger.info(`✅ Квест выполнен: ${questId}, XP: +${quest.xp}`);
+    logger.info(`✅ Квест #${quest.questNumber} выполнен: ${questId}, XP: +${quest.xp}`);
 
     return {
       success: true,
       xpGained: quest.xp,
       newXp,
       newLevel,
+      questNumber: quest.questNumber,
       questTitle: quest.title,
     };
   } catch (error) {
@@ -411,12 +412,11 @@ bot.start(async (ctx) => {
 Статус: Наивный новичок 💀
 
 🎯 Что ты можешь делать:
-/addtask [описание] — превратить задачу в квест
-/quests — посмотреть все текущие квесты
-/done [номер] — отметить квест выполненным
-/profile — посмотреть твой профиль
-/stats — детальная статистика
-/help — справка по всем командам
+📝 /addtask [описание] — превратить задачу в квест
+📋 /quests — посмотреть все текущие квесты
+👤 /profile — посмотреть твой профиль
+📈 /stats — детальная статистика
+❓ /help — справка по всем командам
 
 Давай начнём. Создай свой первый квест:
 /addtask Согласовать договор
@@ -443,7 +443,7 @@ bot.command('addtask', async (ctx) => {
     return;
   }
 
-  await ctx.reply('⏳ Генерирую сюжет... ChatGPT тоже выгорает 🖤');
+  const waitMsg = await ctx.reply('⏳ Генерирую сюжет... ChatGPT тоже выгорает 🖤');
 
   const quest = await createQuest(userId, taskDescription);
 
@@ -452,7 +452,7 @@ bot.command('addtask', async (ctx) => {
     return;
   }
 
-  // ← НОВОЕ: кнопка "Выполнено"
+  // Кнопки для квеста
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('✅ Выполнено!', `done_${quest.id}`)],
   ]);
@@ -461,7 +461,7 @@ bot.command('addtask', async (ctx) => {
 ✅ КВЕСТ #${quest.questNumber} СОЗДАН!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📜 ${quest.title}
+📝 ${quest.title}
 
 "${quest.story}"
 
@@ -474,10 +474,17 @@ bot.command('addtask', async (ctx) => {
   `;
 
   await ctx.reply(questMessage, keyboard);
+  
+  // Удаляем сообщение "Генерирую..."
+  try {
+    await ctx.deleteMessage(waitMsg.message_id);
+  } catch (e) {
+    // Игнорируем если не удалось удалить
+  }
 });
 
 /**
- * /quests - Показать активные квесты (ИСПРАВЛЕНО)
+ * /quests - Показать активные квесты с кнопками
  */
 bot.command('quests', async (ctx) => {
   const userId = ctx.from.id;
@@ -491,7 +498,7 @@ bot.command('quests', async (ctx) => {
     return;
   }
 
-  // Показываем каждый квест отдельным сообщением с кнопкой
+  // Показываем каждый квест отдельным сообщением с кнопками
   for (const quest of quests) {
     const difficulty = '⭐'.repeat(Math.min(Math.floor(quest.xp / 20), 5));
     
@@ -512,55 +519,6 @@ bot.command('quests', async (ctx) => {
   }
 
   await ctx.reply(`\n📊 Всего активных: ${quests.length}`);
-});
-
-  // Получить номер квеста
-  const questNumber = parseInt(args, 10);
-  
-  if (isNaN(questNumber) || questNumber < 1) {
-    await ctx.reply('❌ Укажи правильный номер квеста.\nПример: /done 1');
-    return;
-  }
-
-  // Получить список активных квестов
-  const quests = await getActiveQuests(userId);
-  
-  if (questNumber > quests.length) {
-    await ctx.reply(`❌ Квеста с номером ${questNumber} нет.\nУ тебя всего ${quests.length} квестов.`);
-    return;
-  }
-
-  // Получить квест по номеру (индекс = номер - 1) - ИСПРАВЛЕНО
-  const selectedQuest = quests[questNumber - 1];
-  const questId = selectedQuest.id; // Используем реальный ID из Firestore
-
-  // Завершить квест
-  const result = await completeQuest(userId, questId);
-
-  if (!result.success) {
-    await ctx.reply(`❌ ${result.error}`);
-    return;
-  }
-
-  const completeMessage = `
-🎉 КВЕСТ ВЫПОЛНЕН! (против всех шансов)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📜 ${result.questTitle}
-"Ты пережил это. Это все, что имеет значение."
-
-✨ +${result.xpGained} XP за выживание!
-
-📊 Твой прогресс:
-   Уровень ${result.newLevel}: ${result.newXp} XP
-   Всего выполнено: твоя компетенция растет
-   
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Ещё /addtask или отдыхай?
-  `;
-
-  await ctx.reply(completeMessage);
 });
 
 /**
@@ -696,7 +654,7 @@ bot.command('help', async (ctx) => {
 📝 УПРАВЛЕНИЕ КВЕСТАМИ:
 /addtask [описание] — создать квест
 /quests — список текущих квестов
-/done [номер] — отметить выполненным
+(нажимай кнопки на квестах)
 
 👤 ПРОФИЛЬ И ПРОГРЕСС:
 /profile — мой профиль
@@ -704,7 +662,6 @@ bot.command('help', async (ctx) => {
 
 🏆 ОБЩЕСТВЕННОЕ:
 /leaderboard — глобальный лидерборд
-/daily — ежедневный челлендж (скоро)
 
 ⚙️ ПРОЧЕЕ:
 /settings — настройки
@@ -751,6 +708,80 @@ bot.command('feedback', async (ctx) => {
   } catch (error) {
     logger.error('Ошибка сохранения feedback:', error);
     await ctx.reply('❌ Ошибка при сохранении отзыва');
+  }
+});
+
+// ==================== ОБРАБОТКА INLINE КНОПОК ====================
+
+/**
+ * Обработчик кнопки "✅ Выполнено!"
+ */
+bot.action(/done_(.+)/, async (ctx) => {
+  const questId = ctx.match[1];
+  const userId = ctx.from.id;
+
+  const result = await completeQuest(userId, questId);
+
+  if (!result.success) {
+    await ctx.answerCbQuery(`❌ ${result.error}`, true);
+    return;
+  }
+
+  // Редактируем оригинальное сообщение
+  const completeText = `
+🎉 КВЕСТ #${result.questNumber} ВЫПОЛНЕН!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📜 ${result.questTitle}
+"Ты пережил это. Это все, что имеет значения."
+
+✨ +${result.xpGained} XP за выживание!
+
+📊 Новый уровень: ${result.newLevel}
+   Опыт: ${result.newXp} XP
+   
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  `;
+
+  await ctx.editMessageText(completeText);
+  await ctx.answerCbQuery('✅ Квест выполнен!');
+  
+  logger.info(`✅ Пользователь ${userId} выполнил квест #${result.questNumber}`);
+});
+
+/**
+ * Обработчик кнопки "🗑️ Удалить"
+ */
+bot.action(/delete_(.+)/, async (ctx) => {
+  const questId = ctx.match[1];
+  const userId = ctx.from.id;
+
+  try {
+    const questRef = db.collection('quests').doc(questId);
+    const questDoc = await questRef.get();
+
+    if (!questDoc.exists) {
+      await ctx.answerCbQuery('❌ Квест не найден');
+      return;
+    }
+
+    const quest = questDoc.data();
+    if (quest.userId !== userId.toString()) {
+      await ctx.answerCbQuery('❌ Это не твой квест!');
+      return;
+    }
+
+    // Удаляем квест
+    await questRef.delete();
+
+    const deletedText = `❌ Квест "#${quest.questNumber}" "${quest.title}" удалён`;
+    await ctx.editMessageText(deletedText);
+    await ctx.answerCbQuery('✅ Удалено');
+
+    logger.info(`✅ Квест удален: ${questId}`);
+  } catch (error) {
+    logger.error('Ошибка удаления квеста:', error);
+    await ctx.answerCbQuery('❌ Ошибка удаления');
   }
 });
 
