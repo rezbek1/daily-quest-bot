@@ -372,7 +372,7 @@ bot.command('quests', async (ctx) => {
     return;
   }
 
-  let message = `📋 ТВИ АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
+  let message = `📋 АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
   message += `${'━'.repeat(40)}\n\n`;
 
   for (const quest of quests) {
@@ -656,8 +656,12 @@ bot.action(/delete_(.+)/, async (ctx) => {
  * Кнопки главного меню - ВЫПОЛНЯЮТ ЛОГИКУ
  */
 
+
 bot.action('menu_add', async (ctx) => {
-  await ctx.reply('📝 Напиши: /addtask Описание\n\nПример: /addtask отправить письмо боссу', getMainMenuKeyboard());
+  ctx.session = ctx.session || {};
+  ctx.session.waitingForTask = true;
+  await ctx.reply('📝 Введите описание задачи:\n\nПример: "отправить письмо боссу"', 
+    Markup.keyboard([['❌ Отмена']]).resize());
   await ctx.answerCbQuery();
 });
 
@@ -670,7 +674,7 @@ bot.action('menu_quests', async (ctx) => {
     return;
   }
 
-  let message = `📋 ТВИ АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
+  let message = `📋 АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
   message += `${'━'.repeat(40)}\n\n`;
 
   for (const quest of quests) {
@@ -797,10 +801,68 @@ bot.action('menu_help', async (ctx) => {
   await ctx.answerCbQuery();
 });
 
+
 /**
- * Неправильные команды
+ * Обработка нажатия кнопки "Отмена" при вводе задачи
+ */
+bot.hears('❌ Отмена', async (ctx) => {
+  ctx.session = ctx.session || {};
+  ctx.session.waitingForTask = false;
+  await ctx.reply('❌ Отменено', getMainMenuKeyboard());
+});
+
+/**
+ * Обработка ввода текста задачи
  */
 bot.on('text', async (ctx) => {
+  ctx.session = ctx.session || {};
+  
+  // Если в режиме ввода задачи
+  if (ctx.session.waitingForTask) {
+    const taskDescription = ctx.message.text;
+    
+    if (!taskDescription || taskDescription.length < 3) {
+      await ctx.reply('⚠️ Описание задачи должно быть минимум 3 символа');
+      return;
+    }
+    
+    ctx.session.waitingForTask = false;
+    
+    const userId = ctx.from.id;
+    const isNewUser = await createOrUpdateUser(userId, ctx.from);
+    
+    if (isNewUser) {
+      await ctx.reply('👋 Добро пожаловать в Повседневный Квест!\n\n💀 Циничный бот для тех, кто ненавидит работу', getMainMenuKeyboard());
+    }
+    
+    await ctx.reply('⏳ Генерирую квест...', getMainMenuKeyboard());
+    
+    const quest = await createQuest(userId, taskDescription);
+    if (!quest) {
+      await ctx.reply('❌ Ошибка создания квеста', getMainMenuKeyboard());
+      return;
+    }
+    
+    const questMessage = `✨ НОВЫЙ КВЕСТ #${quest.questNumber}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📜 ${quest.title}
+
+${quest.story}
+
+⭐ +${quest.xp} XP за выживание`;
+    
+    const questKeyboard = Markup.inlineKeyboard([
+      [Markup.button.callback(`✅ Выполнено! #${quest.questNumber}`, `done_${quest.id}`)],
+      [Markup.button.callback(`🗑️ Удалить #${quest.questNumber}`, `delete_${quest.id}`)],
+      ...getMainMenuKeyboard().reply_markup.inline_keyboard,
+    ]);
+    
+    await ctx.reply(questMessage, questKeyboard);
+    return;
+  }
+  
+  // Обычная обработка неправильных команд
   if (!ctx.message.text.startsWith('/')) {
     await ctx.reply(
       '❌ Команда не найдена.\n\nИспользуй кнопки или /help',
@@ -808,6 +870,7 @@ bot.on('text', async (ctx) => {
     );
   }
 });
+
 
 // ==================== ERROR HANDLING ====================
 
