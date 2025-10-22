@@ -372,7 +372,7 @@ bot.command('quests', async (ctx) => {
     return;
   }
 
-  let message = `📋 ТВИ АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
+  let message = `📋 АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
   message += `${'━'.repeat(40)}\n\n`;
 
   for (const quest of quests) {
