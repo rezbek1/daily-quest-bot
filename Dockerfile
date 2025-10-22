@@ -13,7 +13,7 @@ COPY package*.json ./
 RUN npm install --only=production
 
 # Скопировать исходный код
-# COPY src/ ./src/
+COPY src/ ./src/
 
 # Скопировать environment файл
 
