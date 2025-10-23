@@ -1060,7 +1060,68 @@ bot.action('menu_home', async (ctx) => {
 /**
  * Неправильные команды
  */
+
+/**
+ * Обработка нажатия кнопки "Отмена" при вводе задачи
+ */
+bot.hears('❌ Отмена', async (ctx) => {
+  ctx.session = ctx.session || {};
+  ctx.session.waitingForTask = false;
+  await ctx.reply('❌ Отменено', getMainMenuKeyboard());
+});
+
+/**
+ * Обработка ввода текста задачи
+ */
 bot.on('text', async (ctx) => {
+  ctx.session = ctx.session || {};
+  
+  // Если в режиме ввода задачи
+  if (ctx.session.waitingForTask) {
+    const taskDescription = ctx.message.text;
+    
+    if (!taskDescription || taskDescription.length < 3) {
+      await ctx.reply('⚠️ Описание задачи должно быть минимум 3 символа');
+      return;
+    }
+    
+    ctx.session.waitingForTask = false;
+    
+    const userId = ctx.from.id;
+    const isNewUser = await createOrUpdateUser(userId, ctx.from);
+    
+    if (isNewUser) {
+      await ctx.reply('👋 Добро пожаловать в БИЗНЕС-СИМУЛЯТОР ВЫЖИВАНИЯ!\n\n💼 Превращаем твой предпринимательский кошмар в черную комедию. KPI теперь враги, дедлайны — боссы, инвесторы — боги.\n\n🎯 Начни прямо сейчас: напиши свою первую задачу!', getMainMenuKeyboard());
+    }
+    
+    await ctx.reply('⏳ Генерирую квест...', getMainMenuKeyboard());
+    
+    const quest = await createQuest(userId, taskDescription);
+    if (!quest) {
+      await ctx.reply('❌ Ошибка создания квеста', getMainMenuKeyboard());
+      return;
+    }
+    
+    const questMessage = `✨ НОВЫЙ КВЕСТ #${quest.questNumber}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📜 ${quest.title}
+
+${quest.story}
+
+⭐ +${quest.xp} XP за выживание`;
+    
+    const questKeyboard = Markup.inlineKeyboard([
+      [Markup.button.callback(`✅ Выполнено! #${quest.questNumber}`, `done_${quest.id}`)],
+      [Markup.button.callback(`🗑️ Удалить #${quest.questNumber}`, `delete_${quest.id}`)],
+      ...getMainMenuKeyboard().reply_markup.inline_keyboard,
+    ]);
+    
+    await ctx.reply(questMessage, questKeyboard);
+    return;
+  }
+  
+  // Обычная обработка неправильных команд
   if (!ctx.message.text.startsWith('/')) {
     await ctx.reply(
       '❌ Команда не найдена.\n\nИспользуй кнопки или /help',
@@ -1068,6 +1129,7 @@ bot.on('text', async (ctx) => {
     );
   }
 });
+
 
 // ==================== ERROR HANDLING ====================
 
