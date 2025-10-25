@@ -137,8 +137,55 @@ const PROMPTS = {
 
 // ==================== UTILITY FUNCTIONS ====================
 
+/**
+ * Миграция данных пользователя - добавить недостающие поля
+ */
+async function migrateUserData(userId) {
+  try {
+    const userRef = db.collection('users').doc(userId.toString());
+    const userDoc = await userRef.get();
+    
+    if (!userDoc.exists) return;
+    
+    const user = userDoc.data();
+    const updates = {};
+    
+    // Проверить activityLog
+    if (!user.activityLog) {
+      updates.activityLog = [];
+      logger.info(`📋 Добавлен activityLog для ${userId}`);
+    }
+    
+    // Проверить streak
+    if (user.streak === undefined || user.streak === null || user.streak === 0) {
+      // Если есть квесты выполненные - начать streak с 1
+      if (user.totalQuestsCompleted > 0) {
+        updates.streak = 1;
+      } else {
+        updates.streak = 0;
+      }
+      logger.info(`🔥 Инициализирован streak для ${userId}: ${updates.streak}`);
+    }
+    
+    // Если есть обновления - применить их
+    if (Object.keys(updates).length > 0) {
+      await userRef.update(updates);
+      logger.info(`✅ Миграция завершена для ${userId}`, updates);
+    }
+  } catch (error) {
+    logger.error('Ошибка миграции данных:', error);
+  }
+}
+
+/**
+ * Получить пользователя с миграцией
+ */
 async function getUser(userId) {
   try {
+    // Сначала мигрировать данные если нужно
+    await migrateUserData(userId);
+    
+    // Потом получить пользователя
     const userDoc = await db.collection('users').doc(userId.toString()).get();
     return userDoc.exists ? userDoc.data() : null;
   } catch (error) {
@@ -148,6 +195,42 @@ async function getUser(userId) {
 }
 
 async function createOrUpdateUser(userId, userData) {
+  try {
+    const userRef = db.collection('users').doc(userId.toString());
+    const currentUser = await userRef.get();
+
+    if (!currentUser.exists) {
+      await userRef.set({
+        userId,
+        name: userData.first_name || 'Аноним',
+        username: userData.username || `user_${userId}`,
+        level: 1,
+        xp: 0,
+        totalQuestsCompleted: 0,
+        badges: ['Первый день'],
+        theme: 'black',
+        settings: { reminderTime: '19:00', language: 'ru', weeklyReportDay: 'sunday', timezone: 'Europe/Moscow' },
+        createdAt: new Date(),
+        lastActiveAt: new Date(),
+        streak: 1,
+        activityLog: [{
+          date: new Date().toDateString(),
+          questsCompleted: 0,
+          xpGained: 0,
+          timestamp: new Date()
+        }],
+      });
+      logger.info(`✅ Новый пользователь: ${userId}`);
+      return true;
+    } else {
+      await userRef.update({ lastActiveAt: new Date() });
+      return false;
+    }
+  } catch (error) {
+    logger.error('Ошибка создания пользователя:', error);
+    return null;
+  }
+}
 
 /**
  * Обновить streak пользователя
@@ -187,37 +270,6 @@ async function updateStreak(userId) {
     return newStreak;
   } catch (error) {
     logger.error('Ошибка обновления streak:', error);
-  }
-}
-
-  try {
-    const userRef = db.collection('users').doc(userId.toString());
-    const currentUser = await userRef.get();
-
-    if (!currentUser.exists) {
-      await userRef.set({
-        userId,
-        name: userData.first_name || 'Аноним',
-        username: userData.username || `user_${userId}`,
-        level: 1,
-        xp: 0,
-        totalQuestsCompleted: 0,
-        badges: ['Первый день'],
-        theme: 'black',
-        settings: { reminderTime: '19:00', language: 'ru', weeklyReportDay: 'sunday', timezone: 'Europe/Moscow' },
-        createdAt: new Date(),
-        lastActiveAt: new Date(),
-        streak: 0,
-      });
-      logger.info(`✅ Новый пользователь: ${userId}`);
-      return true;
-    } else {
-      await userRef.update({ lastActiveAt: new Date() });
-      return false;
-    }
-  } catch (error) {
-    logger.error('Ошибка создания пользователя:', error);
-    return null;
   }
 }
 
