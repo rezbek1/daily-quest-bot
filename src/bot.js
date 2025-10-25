@@ -1507,16 +1507,30 @@ bot.catch((err, ctx) => {
 
 const startBot = async () => {
   try {
-    await bot.launch();
-    logger.info('🚀 Бот запущен и готов к работе!');
-    logger.info(`🔗 https://t.me/${(await bot.telegram.getMe()).username}`);
+    logger.info('⏳ Начинаю запуск бота...');
+    
+    // Запускаем планировщик ПЕРЕД bot.launch()
+    logger.info('⏳ Запускаю планировщик напоминаний...');
     startReminderScheduler();
+    logger.info('✅ Планировщик запущен!');
+    
+    // Получить информацию о боте
+    const me = await bot.telegram.getMe();
+    logger.info(`🔗 https://t.me/${me.username}`);
+    logger.info('🚀 Бот запущен и готов к работе!');
+    
+    // bot.launch() НЕ возвращает управление - слушает события
+    logger.info('⏳ Вызываю bot.launch()...');
+    await bot.launch();
+    
   } catch (error) {
     logger.error('❌ Ошибка запуска:', error);
+    logger.error('❌ Stack:', error.stack);
     process.exit(1);
   }
 };
 
+logger.info('🔴 ГЛАВНОЕ: Вызываю startBot()');
 startBot();
 
 process.on('SIGINT', () => {
