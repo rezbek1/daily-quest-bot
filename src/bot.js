@@ -119,7 +119,7 @@ ${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
 
 ➡️ Давай, выполнять! /quests`;
           
-          await bot.telegram.sendMessage(user.userId || userDoc.id, reminderMessage, getMainMenuKeyboard());
+          await bot.telegram.sendMessage(user.userId || userDoc.id, reminderMessage);
           logger.info(`✅ Напоминание отправлено ${user.name} в ${userCurrentTime} (${timezone})`);
         } catch (error) {
           logger.warn(`⚠️ Ошибка отправки напоминания ${user.name}: ${error.message}`);
