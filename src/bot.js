@@ -10,6 +10,8 @@ const dotenv = require('dotenv');
 const winston = require('winston');
 const admin = require('firebase-admin');
 const axios = require('axios');
+const cron = require('node-cron');
+const moment = require('moment-timezone');
 
 dotenv.config();
 
@@ -160,7 +162,7 @@ async function createOrUpdateUser(userId, userData) {
         totalQuestsCompleted: 0,
         badges: ['Первый день'],
         theme: 'black',
-        settings: { reminderTime: '19:00', language: 'ru', weeklyReportDay: 'sunday' },
+        settings: { reminderTime: '19:00', language: 'ru', weeklyReportDay: 'sunday', timezone: 'Europe/Moscow' },
         createdAt: new Date(),
         lastActiveAt: new Date(),
         streak: 0,
@@ -206,6 +208,80 @@ async function generateQuestStory(taskDescription, theme = 'corporate') {
   } catch (error) {
     logger.error('❌ Ошибка ChatGPT:', error.message);
     return 'Облагородь эту задачу так, чтобы выглядело честным. Используй много слов и мало смысла.';
+  }
+}
+
+
+/**
+ * ОТПРАВКА НАПОМИНАНИЙ
+ */
+async function sendReminders() {
+  try {
+    // Получить всех пользователей
+    const usersSnapshot = await db.collection('users').get();
+    
+    for (const userDoc of usersSnapshot.docs) {
+      const user = userDoc.data();
+      const reminderTime = user.settings?.reminderTime;
+      const timezone = user.settings?.timezone || 'Europe/Moscow';
+      
+      // Проверить совпадает ли время напоминания
+      if (!reminderTime) continue;
+      
+      // Получить текущее время в timezone пользователя
+      const userNow = moment().tz(timezone);
+      const userHour = String(userNow.hours()).padStart(2, '0');
+      const [reminderHour] = reminderTime.split(':');
+      
+      // Проверить совпадает ли час
+      if (reminderHour !== userHour) continue;
+      
+      // Если время совпало - проверить есть ли активные квесты
+      const activeQuests = await getActiveQuests(user.userId || userDoc.id);
+      
+      if (activeQuests && activeQuests.length > 0) {
+        // Есть активные квесты - отправить напоминание
+        try {
+          const userCurrentTime = userNow.format('HH:mm');
+          
+          const reminderMessage = `🔔 НАПОМИНАНИЕ О КВЕСТАХ
+
+⏰ Время: ${userCurrentTime} (${timezone})
+📋 Активных квестов: ${activeQuests.length}
+
+Вот что ждёт:
+${activeQuests.slice(0, 3).map((q, i) => `${i + 1}. ${q.title}`).join('\n')}
+${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
+
+➡️ Давай, выполнять! /quests`;
+          
+          await bot.telegram.sendMessage(user.userId || userDoc.id, reminderMessage, getMainMenuKeyboard());
+          logger.info(`✅ Напоминание отправлено пользователю ${user.name} в ${userCurrentTime} (${timezone})`);
+        } catch (error) {
+          logger.warn(`⚠️ Не удалось отправить напоминание пользователю ${user.userId}: ${error.message}`);
+        }
+      }
+    }
+  } catch (error) {
+    logger.error('❌ Ошибка при отправке напоминаний:', error);
+  }
+}
+
+/**
+ * ЗАПУСК ПЛАНИРОВЩИКА НАПОМИНАНИЙ
+ */
+function startReminderScheduler() {
+  try {
+    // Проверять напоминания каждую минуту (в начале часа когда минута меняется на :00)
+    const task = cron.schedule('0 * * * *', async () => {
+      logger.info('⏰ Проверка напоминаний...');
+      await sendReminders();
+    });
+    
+    logger.info('✅ Планировщик напоминаний запущен');
+    return task;
+  } catch (error) {
+    logger.error('❌ Ошибка запуска планировщика:', error);
   }
 }
 
@@ -900,7 +976,12 @@ bot.action('menu_settings', async (ctx) => {
 🔔 ВРЕМЯ НАПОМИНАНИЙ
 Текущее время: ${user.settings.reminderTime}
 
-Выбери время ↓`;
+Выбери время ↓
+
+🌍 ЧАСОВОЙ ПОЯС
+Текущий: ${user.settings.timezone || 'Europe/Moscow'}
+
+Выбери пояс ↓`;
 
   const themeKeyboard = Markup.inlineKeyboard([
     [
@@ -917,6 +998,9 @@ bot.action('menu_settings', async (ctx) => {
       Markup.button.callback('19:00', 'set_time_19'),
       Markup.button.callback('21:00', 'set_time_21'),
       Markup.button.callback('23:00', 'set_time_23'),
+    ],
+    [
+      Markup.button.callback('🌍 Часовые пояса', 'select_timezone'),
     ],
     ...getMainMenuKeyboard().reply_markup.inline_keyboard,
   ]);
@@ -996,6 +1080,51 @@ bot.action('set_time_17', setReminderTime('17:00'));
 bot.action('set_time_19', setReminderTime('19:00'));
 bot.action('set_time_21', setReminderTime('21:00'));
 bot.action('set_time_23', setReminderTime('23:00'));
+
+
+/**
+ * Список часовых поясов
+ */
+const TIMEZONES = [
+  'Europe/Moscow', 'Europe/London', 'Europe/Paris', 'Europe/Berlin',
+  'America/New_York', 'America/Los_Angeles', 'Asia/Shanghai', 'Asia/Tokyo'
+];
+/**
+ * Меню выбора часового пояса
+ */
+bot.action('select_timezone', async (ctx) => {
+
+  const tzKeyboard = Markup.inlineKeyboard(
+    TIMEZONES.map(tz => [Markup.button.callback(tz, `tz_${tz}`)]),
+    {
+      columns: 2
+    }
+  );
+
+  await ctx.reply('🌍 Выбери свой часовой пояс:', tzKeyboard);
+  await ctx.answerCbQuery();
+});
+
+/**
+ * Установка часового пояса
+ */
+TIMEZONES.forEach(tz => {
+  bot.action(`tz_${tz}`, async (ctx) => {
+    const userId = ctx.from.id;
+    try {
+      await db.collection('users').doc(userId.toString()).update({
+        'settings.timezone': tz,
+      });
+      await ctx.reply(`✅ Часовой пояс установлен на ${tz}!`, getMainMenuKeyboard());
+    } catch (error) {
+      logger.error('Ошибка при установке timezone:', error);
+      await ctx.reply('❌ Ошибка', getMainMenuKeyboard());
+    }
+    await ctx.answerCbQuery();
+  });
+});
+
+
 
 bot.action('menu_help', async (ctx) => {
   const helpMessage = `❓ СПРАВКА ПО КОМАНДАМ
@@ -1149,6 +1278,7 @@ const startBot = async () => {
     await bot.launch();
     logger.info('🚀 Бот запущен и готов к работе!');
     logger.info(`🔗 https://t.me/${(await bot.telegram.getMe()).username}`);
+    startReminderScheduler();
   } catch (error) {
     logger.error('❌ Ошибка запуска:', error);
     process.exit(1);
