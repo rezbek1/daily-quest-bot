@@ -1532,6 +1532,137 @@ ${quest.story}
   }
 });
 
+/**
+ * 🏆 LEADERBOARD - Показать рейтинг
+ */
+async function showLeaderboard(ctx) {
+  const userId = ctx.from.id;
+  
+  try {
+    const user = await getUser(userId);
+    if (!user) {
+      await ctx.reply('❌ Сначала создай хотя бы один квест!', getMainMenuKeyboard());
+      return;
+    }
+
+    // Получить всех пользователей для сравнения
+    const usersSnapshot = await db.collection('users').get();
+    const allUsers = [];
+    
+    usersSnapshot.forEach(doc => {
+      const userData = doc.data();
+      allUsers.push({
+        userId: userData.userId,
+        completed: userData.totalQuestsCompleted || 0,
+        streak: userData.streak || 0,
+      });
+    });
+
+    // Отсортировать по квестам
+    allUsers.sort((a, b) => b.completed - a.completed);
+
+    // Определить позицию текущего пользователя
+    const userPosition = allUsers.findIndex(u => u.userId === userId);
+    const totalUsers = allUsers.length;
+    const percentile = Math.round((1 - userPosition / totalUsers) * 100);
+
+    // Категоризировать пользователей
+    const categories = {
+      legend: allUsers.filter(u => u.completed >= 45),
+      champion: allUsers.filter(u => u.completed >= 30 && u.completed < 45),
+      star: allUsers.filter(u => u.completed >= 15 && u.completed < 30),
+      rising: allUsers.filter(u => u.completed >= 5 && u.completed < 15),
+    };
+
+    // Определить категорию текущего пользователя
+    let categoryName = '🌟 Новичок';
+    let categoryEmoji = '✨';
+
+    if (user.totalQuestsCompleted >= 45) {
+      categoryName = '🥇 ЛЕГЕНДА';
+      categoryEmoji = '👑';
+    } else if (user.totalQuestsCompleted >= 30) {
+      categoryName = '🥈 ЧЕМПИОН';
+      categoryEmoji = '🏆';
+    } else if (user.totalQuestsCompleted >= 15) {
+      categoryName = '🥉 ЗВЕЗДА';
+      categoryEmoji = '⭐';
+    } else if (user.totalQuestsCompleted >= 5) {
+      categoryName = '🌠 ВОСХОДЯЩАЯ';
+      categoryEmoji = '💫';
+    }
+
+    // Определить сколько квестов до следующего уровня
+    const thresholds = [5, 15, 30, 45];
+    let nextThreshold = thresholds.find(t => t > user.totalQuestsCompleted) || Infinity;
+    const questsNeeded = nextThreshold === Infinity ? 0 : nextThreshold - user.totalQuestsCompleted;
+
+    // Формировать сообщение
+    let message = `🏆 LEADERBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+`;
+
+    // Показать топ категорий
+    if (categories.legend.length > 0) {
+      message += `🥇 ЛЕГЕНДА (1 герой)\n`;
+      message += `   👑 ${categories.legend[0].completed} квестов\n`;
+      message += `   🔥 Серия: ${categories.legend[0].streak} дней\n\n`;
+    }
+
+    if (categories.champion.length > 0) {
+      message += `🥈 ЧЕМПИОН (${categories.champion.length > 10 ? '10+' : categories.champion.length})\n`;
+      const top2 = categories.champion.slice(0, 2);
+      top2.forEach(u => {
+        message += `   🏆 ${u.completed} квестов | 🔥 ${u.streak} дней\n`;
+      });
+      message += `\n`;
+    }
+
+    if (categories.star.length > 0) {
+      message += `🥉 ЗВЕЗДА (${categories.star.length > 20 ? '20+' : categories.star.length})\n`;
+      const top2 = categories.star.slice(0, 2);
+      top2.forEach(u => {
+        message += `   ⭐ ${u.completed} квестов | 🔥 ${u.streak} дней\n`;
+      });
+      message += `\n`;
+    }
+
+    if (categories.rising.length > 0) {
+      message += `🌠 ВОСХОДЯЩАЯ (${categories.rising.length > 30 ? '30+' : categories.rising.length})\n`;
+      message += `   💫 Новички показывают класс!\n\n`;
+    }
+
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    // Показать достижение текущего пользователя
+    message += `👤 ТВЕ ДОСТИЖЕНИЕ:\n`;
+    message += `${categoryEmoji} ${categoryName}\n`;
+    message += `✅ ${user.totalQuestsCompleted} квестов\n`;
+    message += `🔥 Серия: ${user.streak || 0} дней\n\n`;
+
+    message += `📊 ТОЙ РЕЙТИНГ:\n`;
+    message += `📈 Top ${percentile}% лидеров\n`;
+
+    // Показать прогресс
+    if (questsNeeded > 0) {
+      const pluralForm = questsNeeded === 1 ? 'квеста' : questsNeeded < 5 ? 'квестов' : 'квестов';
+      message += `🎯 До следующего уровня: ${questsNeeded} ${pluralForm}\n`;
+    }
+
+    message += `\n💪 Продолжай! Ты легенда! 🚀`;
+
+    await ctx.reply(message, getMainMenuKeyboard());
+    logger.info(`✅ Лидерборд показан пользователю ${userId}`);
+
+  } catch (error) {
+    logger.error('❌ Ошибка при показе лидерборда:', error);
+    await ctx.reply('❌ Ошибка загрузки лидерборда', getMainMenuKeyboard());
+  }
+}
+
+// Команда /leaderboard
+bot.command('leaderboard', showLeaderboard);
 
 // ==================== ERROR HANDLING ====================
 
