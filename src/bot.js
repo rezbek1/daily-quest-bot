@@ -148,6 +148,48 @@ async function getUser(userId) {
 }
 
 async function createOrUpdateUser(userId, userData) {
+
+/**
+ * Обновить streak пользователя
+ */
+async function updateStreak(userId) {
+  try {
+    const userRef = db.collection('users').doc(userId.toString());
+    const userDoc = await userRef.get();
+    const user = userDoc.data();
+    
+    if (!user) return;
+    
+    const today = new Date().toDateString();
+    const lastActive = user.lastActiveAt?.toDate?.()?.toDateString?.();
+    
+    let newStreak = user.streak || 1;
+    
+    // Если это новый день
+    if (lastActive !== today) {
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      
+      if (lastActive === yesterday) {
+        // Вчера была активность - продолжить серию
+        newStreak = (user.streak || 1) + 1;
+      } else {
+        // Был перерыв - начать заново
+        newStreak = 1;
+      }
+    }
+    
+    await userRef.update({
+      streak: newStreak,
+      lastActiveAt: new Date()
+    });
+    
+    logger.info(`✅ Streak обновлен для ${userId}: ${newStreak} дней`);
+    return newStreak;
+  } catch (error) {
+    logger.error('Ошибка обновления streak:', error);
+  }
+}
+
   try {
     const userRef = db.collection('users').doc(userId.toString());
     const currentUser = await userRef.get();
@@ -397,10 +439,37 @@ async function completeQuest(userId, questId) {
 
     const newXp = user.xp + quest.xp;
     const newLevel = Math.floor(newXp / 300) + 1;
+    
+    // Обновить streak
+    const newStreak = await updateStreak(userId);
+    
+    // Подготовить activityLog
+    const today = new Date().toDateString();
+    const activityLog = user.activityLog || [];
+    const todayLog = activityLog.find(log => log.date === today);
+    
+    if (todayLog) {
+      todayLog.questsCompleted += 1;
+      todayLog.xpGained += quest.xp;
+      todayLog.quests = todayLog.quests || [];
+      todayLog.quests.push(quest.title);
+    } else {
+      activityLog.push({
+        date: today,
+        questsCompleted: 1,
+        xpGained: quest.xp,
+        quests: [quest.title],
+        timestamp: new Date()
+      });
+    }
 
     await userRef.update({
-      xp: newXp, level: newLevel, totalQuestsCompleted: user.totalQuestsCompleted + 1,
+      xp: newXp, 
+      level: newLevel, 
+      totalQuestsCompleted: user.totalQuestsCompleted + 1,
+      streak: newStreak,
       lastActiveAt: new Date(),
+      activityLog: activityLog
     });
 
     await db.collection('analytics').add({
@@ -408,9 +477,9 @@ async function completeQuest(userId, questId) {
       xpGained: quest.xp, newLevel, timestamp: new Date(),
     });
 
-    logger.info(`✅ Квест #${quest.questNumber} выполнен: ${questId}, XP: +${quest.xp}`);
+    logger.info(`✅ Квест #${quest.questNumber} выполнен: ${questId}, XP: +${quest.xp}, Streak: ${newStreak}`);
     return {
-      success: true, xpGained: quest.xp, newXp, newLevel,
+      success: true, xpGained: quest.xp, newXp, newLevel, newStreak,
       questNumber: quest.questNumber, questTitle: quest.title,
     };
   } catch (error) {
@@ -782,6 +851,8 @@ bot.action(/done_(.+)/, async (ctx) => {
     return;
   }
 
+  const streakEmoji = result.newStreak >= 7 ? '🔥' : result.newStreak >= 3 ? '⚡' : '✨';
+
   const completeText = `🎉 КВЕСТ #${result.questNumber} ВЫПОЛНЕН!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -791,7 +862,9 @@ bot.action(/done_(.+)/, async (ctx) => {
 ✨ +${result.xpGained} XP за выживание!
 
 📊 Новый уровень: ${result.newLevel}
-   Опыт: ${result.newXp} XP`;
+   Опыт: ${result.newXp} XP
+
+${streakEmoji} Streak: ${result.newStreak} дней подряд!`;
 
   await ctx.editMessageText(completeText);
   await ctx.answerCbQuery('✅ Квест выполнен!');
@@ -888,6 +961,20 @@ bot.action('menu_profile', async (ctx) => {
     return;
   }
 
+  // Показать последнюю неделю активности
+  const activityLog = user.activityLog || [];
+  const lastWeek = activityLog.slice(-7).reverse();
+  
+  let historyText = '';
+  if (lastWeek.length > 0) {
+    historyText = '\n📅 ИСТОРИЯ (7 ДНЕЙ)\n';
+    lastWeek.forEach(day => {
+      historyText += `${day.date}: ${day.questsCompleted} квестов (+${day.xpGained} XP)\n`;
+    });
+  }
+
+  const streakEmoji = user.streak >= 7 ? '🔥' : user.streak >= 3 ? '⚡' : '✨';
+
   const profileMessage = `👤 ПРОФИЛЬ: ${user.name}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -897,10 +984,10 @@ bot.action('menu_profile', async (ctx) => {
 
 📈 ПРОГРЕСС
 ✅ Всего квестов: ${user.totalQuestsCompleted}
-🔥 Streak: ${user.streak} дней
+${streakEmoji} Streak: ${user.streak} дней
 
-🏆 БЕЙДЖИ: ${user.badges.join(', ')}
-
+🏆 БЕЙДЖИ: ${user.badges.join(', ') || 'Еще нет'}
+${historyText}
 ⚙️ НАСТРОЙКИ
 🎨 Тема: ${user.theme}
 🔔 Напоминания: ${user.settings.reminderTime}
