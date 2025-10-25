@@ -311,27 +311,44 @@ async function generateQuestStory(taskDescription, theme = 'corporate') {
  */
 async function sendReminders() {
   try {
+    logger.info('🔍 ЗАПУСК ПРОВЕРКИ НАПОМИНАНИЙ');
+    
     // Получить всех пользователей
     const usersSnapshot = await db.collection('users').get();
+    logger.info(`📊 Всего пользователей: ${usersSnapshot.docs.length}`);
     
     for (const userDoc of usersSnapshot.docs) {
       const user = userDoc.data();
       const reminderTime = user.settings?.reminderTime;
       const timezone = user.settings?.timezone || 'Europe/Moscow';
       
+      logger.info(`👤 Проверяю ${user.name}: время ${reminderTime}, зона ${timezone}`);
+      
       // Проверить совпадает ли время напоминания
-      if (!reminderTime) continue;
+      if (!reminderTime) {
+        logger.info(`⏭️ Пропускаю ${user.name}: нет времени напоминания`);
+        continue;
+      }
       
       // Получить текущее время в timezone пользователя
       const userNow = moment().tz(timezone);
       const userHour = String(userNow.hours()).padStart(2, '0');
+      const userMinute = String(userNow.minutes()).padStart(2, '0');
       const [reminderHour] = reminderTime.split(':');
       
+      logger.info(`⏰ ${user.name}: текущее время ${userHour}:${userMinute}, ожидается ${reminderHour}:xx`);
+      
       // Проверить совпадает ли час
-      if (reminderHour !== userHour) continue;
+      if (reminderHour !== userHour) {
+        logger.info(`❌ ${user.name}: час не совпадает (${reminderHour} !== ${userHour})`);
+        continue;
+      }
+      
+      logger.info(`✅ ${user.name}: час совпадает! Проверяю активные квесты...`);
       
       // Если время совпало - проверить есть ли активные квесты
       const activeQuests = await getActiveQuests(user.userId || userDoc.id);
+      logger.info(`📋 ${user.name}: активных квестов: ${activeQuests?.length || 0}`);
       
       if (activeQuests && activeQuests.length > 0) {
         // Есть активные квесты - отправить напоминание
@@ -350,12 +367,16 @@ ${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
 ➡️ Давай, выполнять! /quests`;
           
           await bot.telegram.sendMessage(user.userId || userDoc.id, reminderMessage, getMainMenuKeyboard());
-          logger.info(`✅ Напоминание отправлено пользователю ${user.name} в ${userCurrentTime} (${timezone})`);
+          logger.info(`✅ Напоминание отправлено ${user.name} в ${userCurrentTime} (${timezone})`);
         } catch (error) {
-          logger.warn(`⚠️ Не удалось отправить напоминание пользователю ${user.userId}: ${error.message}`);
+          logger.warn(`⚠️ Ошибка отправки напоминания ${user.name}: ${error.message}`);
         }
+      } else {
+        logger.info(`⏭️ ${user.name}: нет активных квестов`);
       }
     }
+    
+    logger.info('✅ ПРОВЕРКА НАПОМИНАНИЙ ЗАВЕРШЕНА');
   } catch (error) {
     logger.error('❌ Ошибка при отправке напоминаний:', error);
   }
@@ -812,6 +833,72 @@ Streak: ${user.streak} дней
 /**
  * /help
  */
+
+/**
+ * /reminder_test - ТЕСТОВАЯ ОТПРАВКА НАПОМИНАНИЯ
+ */
+bot.command('reminder_test', async (ctx) => {
+  const userId = ctx.from.id;
+  const user = await getUser(userId);
+  
+  if (!user) {
+    await ctx.reply('❌ Пользователь не найден');
+    return;
+  }
+  
+  await ctx.reply('🧪 Запускаю тестовую отправку напоминания...');
+  logger.info(`🧪 ТЕСТОВАЯ ОТПРАВКА для ${user.name}`);
+  
+  // Получить активные квесты
+  const activeQuests = await getActiveQuests(userId);
+  logger.info(`📋 Найдено активных квестов: ${activeQuests?.length || 0}`);
+  
+  if (!activeQuests || activeQuests.length === 0) {
+    await ctx.reply('❌ У тебя нет активных квестов. Создай сначала квест!');
+    return;
+  }
+  
+  try {
+    const timezone = user.settings?.timezone || 'Europe/Moscow';
+    const userNow = moment().tz(timezone);
+    const userCurrentTime = userNow.format('HH:mm');
+    
+    const reminderMessage = `🔔 ТЕСТОВОЕ НАПОМИНАНИЕ О КВЕСТАХ
+
+⏰ Время: ${userCurrentTime} (${timezone})
+📋 Активных квестов: ${activeQuests.length}
+
+Вот что ждёт:
+${activeQuests.slice(0, 3).map((q, i) => `${i + 1}. ${q.title}`).join('\n')}
+${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
+
+➡️ Давай, выполнять! /quests`;
+    
+    await bot.telegram.sendMessage(userId, reminderMessage, getMainMenuKeyboard());
+    await ctx.reply('✅ Тестовое напоминание отправлено!');
+    logger.info(`✅ Тестовое напоминание отправлено ${user.name}`);
+  } catch (error) {
+    await ctx.reply(`❌ Ошибка: ${error.message}`);
+    logger.error(`❌ Ошибка тестовой отправки: ${error.message}`);
+  }
+});
+
+
+/**
+ * /test - ПРОСТОЙ ТЕСТ
+ */
+bot.command('test', async (ctx) => {
+  logger.info('🧪 КОМАНДА /TEST ПОЛУЧЕНА!');
+  
+  try {
+    logger.info('🤖 Пытаюсь отправить ответ...');
+    await ctx.reply('✅ БОТ РАБОТАЕТ!');
+    logger.info('✅ Ответ отправлен успешно');
+  } catch (error) {
+    logger.error('❌ ОШИБКА ОТПРАВКИ:', error.message);
+  }
+});
+
 bot.command('help', async (ctx) => {
   const helpMessage = `❓ СПРАВКА ПО КОМАНДАМ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
