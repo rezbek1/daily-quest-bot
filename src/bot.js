@@ -905,6 +905,43 @@ bot.command('test', async (ctx) => {
   }
 });
 
+/**
+ * Тестирование напоминаний
+ */
+bot.command('test_reminder', async (ctx) => {
+  const userId = ctx.from.id;
+  logger.info(`🧪 КОМАНДА /TEST_REMINDER от ${userId}`);
+  
+  try {
+    // Получить активные квесты пользователя
+    const activeQuests = await getActiveQuests(userId);
+    
+    if (!activeQuests || activeQuests.length === 0) {
+      await ctx.reply('❌ У вас нет активных квестов для напоминания');
+      return;
+    }
+    
+    // Создать напоминание
+    const reminderMessage = `🔔 ТЕСТОВОЕ НАПОМИНАНИЕ О КВЕСТАХ
+
+⏰ Время: ${new Date().toLocaleTimeString('ru-RU')}
+📋 Активных квестов: ${activeQuests.length}
+
+Вот что ждёт:
+${activeQuests.slice(0, 3).map((q, i) => `${i + 1}. ${q.title}`).join('\n')}
+${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
+
+➡️ Давай, выполнять! /quests`;
+    
+    await ctx.reply(reminderMessage);
+    logger.info(`✅ Тестовое напоминание отправлено ${userId}`);
+    
+  } catch (error) {
+    logger.error('❌ Ошибка тестирования напоминания:', error.message);
+    await ctx.reply('❌ Ошибка при отправке напоминания');
+  }
+});
+
 bot.command('help', async (ctx) => {
   const helpMessage = `❓ СПРАВКА ПО КОМАНДАМ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -917,6 +954,10 @@ bot.command('help', async (ctx) => {
 👤 ПРОФИЛЬ И ПРОГРЕСС:
 /profile — профиль
 /stats — статистика
+
+🧪 ТЕСТИРОВАНИЕ:
+/test — проверить что бот работает
+/test_reminder — тестовое напоминание
 
 🏆 ОБЩЕСТВЕННОЕ:
 /leaderboard — лидерборд
