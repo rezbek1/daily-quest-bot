@@ -579,10 +579,13 @@ function getMainMenuKeyboard() {
     ],
     [
       Markup.button.callback('📈 Статистика', 'menu_stats'),
-      Markup.button.callback('⚙️ Настройки', 'menu_settings'),
+      Markup.button.callback('🏆 Лидерборд', 'menu_leaderboard'),
       Markup.button.callback('❓ Помощь', 'menu_help'),
     ],
-    [Markup.button.callback('🏠 На главную', 'menu_home')],
+    [
+      Markup.button.callback('⚙️ Настройки', 'menu_settings'),
+      Markup.button.callback('🏠 На главную', 'menu_home'),
+    ],
   ]);
 }
 
@@ -1539,6 +1542,8 @@ async function showLeaderboard(ctx) {
   const userId = ctx.from.id;
   
   try {
+    await ctx.answerCbQuery();
+    
     const user = await getUser(userId);
     if (!user) {
       await ctx.reply('❌ Сначала создай хотя бы один квест!', getMainMenuKeyboard());
@@ -1661,8 +1666,8 @@ async function showLeaderboard(ctx) {
   }
 }
 
-// Команда /leaderboard
-bot.command('leaderboard', showLeaderboard);
+// Обработчик для кнопки "🏆 Лидерборд" в меню
+bot.action('menu_leaderboard', showLeaderboard);
 
 // ==================== ERROR HANDLING ====================
 
