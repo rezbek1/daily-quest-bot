@@ -82,32 +82,40 @@ async function sendReminders() {
         logger.info(`⏭️ Пропускаю ${user.name}: нет времени напоминания`);
         continue;
       }
-      
       // Получить текущее время в timezone пользователя
       const userNow = moment().tz(timezone);
       const userHour = String(userNow.hours()).padStart(2, '0');
       const userMinute = String(userNow.minutes()).padStart(2, '0');
-      const [reminderHour] = reminderTime.split(':');
+      const userCurrentTime = `${userHour}:${userMinute}`;
+      const [reminderHour, reminderMinute] = reminderTime.split(':');
       
-      logger.info(`⏰ ${user.name}: текущее время ${userHour}:${userMinute}, ожидается ${reminderHour}:xx`);
+      logger.info(`⏰ ${user.name}: текущее время ${userCurrentTime}, напоминание в ${reminderTime}`);
       
-      // Проверить совпадает ли час
-      if (reminderHour !== userHour) {
-        logger.info(`❌ ${user.name}: час не совпадает (${reminderHour} !== ${userHour})`);
+      // ✅ ИСПРАВКА #1: Проверяем ТОЧНОЕ время (часы И минуты)
+      if (userCurrentTime !== reminderTime) {
+        logger.info(`❌ ${user.name}: время не совпадает (${userCurrentTime} !== ${reminderTime})`);
         continue;
       }
       
-      logger.info(`✅ ${user.name}: час совпадает! Проверяю активные квесты...`);
+      // ✅ ИСПРАВКА #2: Проверяем, не было ли уже отправлено напоминание сегодня
+      const todayDate = userNow.format('YYYY-MM-DD');
+      const lastReminderDate = user.lastReminderSentDate;
+      
+      if (lastReminderDate === todayDate) {
+        logger.info(`⏭️ ${user.name}: напоминание уже отправлено сегодня (${todayDate})`);
+        continue;
+      }
+      
+      logger.info(`✅ ${user.name}: время совпадает! Проверяю активные квесты...`);
       
       // Если время совпало - проверить есть ли активные квесты
-      const activeQuests = await getActiveQuests(user.userId || userDoc.id);
+      const userId = user.userId || userDoc.id;
+      const activeQuests = await getActiveQuests(userId);
       logger.info(`📋 ${user.name}: активных квестов: ${activeQuests?.length || 0}`);
       
       if (activeQuests && activeQuests.length > 0) {
         // Есть активные квесты - отправить напоминание
         try {
-          const userCurrentTime = userNow.format('HH:mm');
-          
           const reminderMessage = `🔔 НАПОМИНАНИЕ О КВЕСТАХ
 
 ⏰ Время: ${userCurrentTime} (${timezone})
@@ -119,13 +127,42 @@ ${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
 
 ➡️ Давай, выполнять! /quests`;
           
-          await bot.telegram.sendMessage(user.userId || userDoc.id, reminderMessage);
-          logger.info(`✅ Напоминание отправлено ${user.name} в ${userCurrentTime} (${timezone})`);
+          await bot.telegram.sendMessage(userId, reminderMessage);
+          
+          // ✅ ИСПРАВКА #3: Сохраняем дату отправки, чтобы больше не отправлять сегодня
+          await db.collection('users').doc(userDoc.id).update({
+            lastReminderSentDate: todayDate,
+            lastReminderSentTime: new Date()
+          });
+          
+          logger.info(`✅ Напоминание отправлено ${user.name} в ${userCurrentTime} (${timezone}) | Дата: ${todayDate}`);
         } catch (error) {
           logger.warn(`⚠️ Ошибка отправки напоминания ${user.name}: ${error.message}`);
         }
       } else {
-        logger.info(`⏭️ ${user.name}: нет активных квестов`);
+        logger.info(`⏭️ ${user.name}: нет активных квестов, но время совпало. Отправляю уведомление...`);
+        
+        try {
+          const noQuestsMessage = `🔔 ВРЕМЯ НАПОМИНАНИЯ
+
+⏰ ${userCurrentTime} (${timezone})
+
+😴 У тебя нет активных квестов!
+
+💡 Совет: создай новый квест или возьмись за что-то из архива. /quests`;
+          
+          await bot.telegram.sendMessage(userId, noQuestsMessage);
+          
+          // Сохраняем дату отправки
+          await db.collection('users').doc(userDoc.id).update({
+            lastReminderSentDate: todayDate,
+            lastReminderSentTime: new Date()
+          });
+          
+          logger.info(`✅ Уведомление отправлено ${user.name} (нет квестов) в ${userCurrentTime}`);
+        } catch (error) {
+          logger.warn(`⚠️ Ошибка отправки уведомления ${user.name}: ${error.message}`);
+        }
       }
     }
     
