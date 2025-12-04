@@ -1060,16 +1060,6 @@ bot.command('admin_login', async (ctx) => {
     );
     return;
   }
-bot.command('admin_login', async (ctx) => {
-  const userId = ctx.from.id;
-  const userName = ctx.from.first_name || ctx.from.username || 'Неизвестный';
-  
-  try {
-    await ctx.deleteMessage();
-  } catch (e) {}
-
-  const password = ctx.message.text.replace('/admin_login', '').trim();
-  
 
   if (password !== ADMIN_PASSWORD) {
     logger.warn(`❌ Неудачная попытка входа: ${userName} (${userId})`);
