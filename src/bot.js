@@ -983,13 +983,10 @@ ${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
 });
 
 bot.command('help', async (ctx) => {
-  // ==================== КОНФИГУРАЦИЯ ====================
+  
+// ==================== КОНФИГУРАЦИЯ ====================
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme123';
 
-/**
- * Проверка: является ли пользователь администратором
- * Читает из Firebase (безопасно!)
- */
 async function isAdmin(userId) {
   try {
     const userDoc = await db.collection('users').doc(userId.toString()).get();
@@ -1001,21 +998,50 @@ async function isAdmin(userId) {
   }
 }
 
-// ==================== ВХОД КАК АДМИНИСТРАТОР ====================
 /**
- * /admin_login пароль
- * Вход в админ-панель
+ * ==================== АДМИН МЕНЮ С КНОПКАМИ ====================
+ * Удобная клавиатура для администратора
  */
+function getAdminKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('📣 Broadcast Text', 'admin_broadcast_text'),
+      Markup.button.callback('📸 Broadcast Photo', 'admin_broadcast_photo'),
+    ],
+    [
+      Markup.button.callback('🎥 Broadcast Video', 'admin_broadcast_video'),
+      Markup.button.callback('📊 Статистика', 'admin_stats'),
+    ],
+    [
+      Markup.button.callback('👥 Список админов', 'admin_list_show'),
+      Markup.button.callback('🔄 Обновить', 'admin_menu'),
+    ],
+    [
+      Markup.button.callback('🚪 Выход из админки', 'admin_logout_confirm'),
+    ],
+  ]);
+}
+
+/**
+ * Маленькая клавиатура "Назад" для подменю
+ */
+function getBackToAdminKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('« Назад в меню', 'admin_menu'),
+      Markup.button.callback('🚪 Выход', 'admin_logout_confirm'),
+    ],
+  ]);
+}
+
+// ==================== ВХОД КАК АДМИНИСТРАТОР ====================
 bot.command('admin_login', async (ctx) => {
   const userId = ctx.from.id;
   const userName = ctx.from.first_name || ctx.from.username || 'Неизвестный';
   
-  // Удаляем сообщение с паролем из чата
   try {
     await ctx.deleteMessage();
-  } catch (e) {
-    // Если не удалось - ничего страшного
-  }
+  } catch (e) {}
 
   const password = ctx.message.text.replace('/admin_login', '').trim();
   
@@ -1035,7 +1061,6 @@ bot.command('admin_login', async (ctx) => {
     return;
   }
 
-  // Проверка пароля
   if (password !== ADMIN_PASSWORD) {
     logger.warn(`❌ Неудачная попытка входа: ${userName} (${userId})`);
     await ctx.reply('❌ Неверный пароль!');
@@ -1043,7 +1068,6 @@ bot.command('admin_login', async (ctx) => {
   }
 
   try {
-    // Сохраняем пользователя как администратора в Firebase
     await db.collection('users').doc(userId.toString()).update({
       isAdmin: true,
       adminSince: admin.firestore.FieldValue.serverTimestamp(),
@@ -1053,19 +1077,19 @@ bot.command('admin_login', async (ctx) => {
     logger.info(`✅ Вошел администратор: ${userName} (${userId})`);
 
     await ctx.reply(
-`✅ *Вы успешно вошли как администратор!*
+`✅ *Добро пожаловать, администратор!*
 
-🔧 Доступные команды:
-• /admin - Панель управления
-• /broadcast - Отправить всем (текст)
-• /broadcast_photo - Отправить фото
-• /broadcast_video - Отправить видео
-• /broadcast_active - Отправить активным
-• /admin_list - Список администраторов
+Вы успешно вошли в админ-панель.
+
+Используйте меню ниже или команды:
+• /admin - Главное меню
 • /admin_logout - Выход
 
-Добро пожаловать! 🎉`,
-      { parse_mode: 'Markdown' }
+⚠️ *Не забудьте выйти после работы!*`,
+      { 
+        parse_mode: 'Markdown',
+        ...getAdminKeyboard()
+      }
     );
 
   } catch (error) {
@@ -1074,495 +1098,7 @@ bot.command('admin_login', async (ctx) => {
   }
 });
 
-// ==================== ВЫХОД ====================
-bot.command('admin_logout', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    return;
-  }
-
-  try {
-    await db.collection('users').doc(userId.toString()).update({
-      isAdmin: false,
-      lastAdminLogout: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    await ctx.reply('👋 Вы вышли из админ-панели!');
-    logger.info(`📤 Администратор вышел: ${userId}`);
-
-  } catch (error) {
-    logger.error('❌ Ошибка при выходе:', error);
-    await ctx.reply('❌ Ошибка выхода');
-  }
-});
-
-// ==================== СПИСОК АДМИНИСТРАТОРОВ ====================
-bot.command('admin_list', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    await ctx.reply('❌ У вас нет прав администратора');
-    return;
-  }
-
-  try {
-    const adminsSnapshot = await db.collection('users')
-      .where('isAdmin', '==', true)
-      .get();
-
-    const admins = adminsSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name || 'Неизвестный',
-        adminSince: data.adminSince?.toDate?.() || null,
-      };
-    });
-
-    if (admins.length === 0) {
-      await ctx.reply('Нет администраторов в системе.');
-      return;
-    }
-
-    const adminList = admins.map((admin, index) => {
-      const since = admin.adminSince 
-        ? admin.adminSince.toLocaleDateString('ru-RU')
-        : 'Неизвестно';
-      return `${index + 1}. ${admin.name} (${admin.id})\n   С: ${since}`;
-    }).join('\n\n');
-
-    await ctx.reply(
-`👥 *Список администраторов (${admins.length})*
-
-${adminList}`,
-      { parse_mode: 'Markdown' }
-    );
-
-  } catch (error) {
-    logger.error('❌ Ошибка загрузки списка администраторов:', error);
-    await ctx.reply('❌ Ошибка загрузки данных');
-  }
-});
-
-// ==================== BROADCAST - ТЕКСТ ====================
-/**
- * /broadcast сообщение
- * Отправка текстового сообщения всем пользователям
- */
-bot.command('broadcast', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    await ctx.reply('❌ У вас нет прав. Используйте /admin_login');
-    return;
-  }
-
-  const messageText = ctx.message.text.replace('/broadcast', '').trim();
-  
-  if (!messageText) {
-    await ctx.reply(
-`📣 *BROADCAST - Отправка сообщения всем*
-
-Использование:
-\`/broadcast ваше сообщение\`
-
-Примеры:
-\`/broadcast 🎉 Обновление! Добавлен Asia/Jerusalem timezone\`
-
-\`/broadcast 📢 Важное объявление
-Мы добавили новые функции!
-- Часовой пояс Израиль
-- Улучшенные напоминания\`
-
-*Поддержка Markdown:*
-\`/broadcast **Жирный** _Курсив_ \\\`Код\\\`\`
-
-Сообщение будет отправлено ВСЕМ пользователям!`,
-      { parse_mode: 'Markdown' }
-    );
-    return;
-  }
-
-  try {
-    await ctx.reply('📤 Отправляю сообщение всем пользователям...');
-
-    const usersSnapshot = await db.collection('users').get();
-    const users = usersSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    logger.info(`📣 Broadcast от ${userId}: отправка ${users.length} пользователям`);
-
-    let successCount = 0;
-    let failCount = 0;
-    const errors = [];
-
-    for (const user of users) {
-      try {
-        await bot.telegram.sendMessage(user.id, messageText, {
-          parse_mode: 'Markdown',
-          ...getMainMenuKeyboard()
-        });
-        successCount++;
-        
-        // Задержка для соблюдения лимитов Telegram
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-      } catch (error) {
-        failCount++;
-        errors.push({
-          userId: user.id,
-          name: user.name || 'Неизвестный',
-          error: error.message
-        });
-      }
-    }
-
-    // Отчет администратору
-    const reportMessage = `
-✅ *Broadcast завершен!*
-
-📊 Статистика:
-• Успешно: ${successCount}/${users.length}
-• Неудачно: ${failCount}
-
-${failCount > 0 && failCount <= 5 ? `\n⚠️ Не удалось отправить:\n${errors.slice(0, 5).map(e => `• ${e.name} (${e.userId}): ${e.error}`).join('\n')}` : ''}
-
-Отправленное сообщение:
-"${messageText.length > 200 ? messageText.substring(0, 200) + '...' : messageText}"
-    `.trim();
-
-    await ctx.reply(reportMessage, { parse_mode: 'Markdown' });
-    
-    logger.info(`✅ Broadcast завершен: ${successCount} успешно, ${failCount} неудачно`);
-
-  } catch (error) {
-    logger.error('❌ Ошибка в broadcast:', error);
-    await ctx.reply(`❌ Ошибка отправки: ${error.message}`);
-  }
-});
-
-// ==================== BROADCAST - ФОТО ====================
-/**
- * /broadcast_photo
- * Шаг 1: Команда
- * Шаг 2: Отправь фото с подписью (caption)
- */
-bot.command('broadcast_photo', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    await ctx.reply('❌ У вас нет прав администратора');
-    return;
-  }
-
-  // Сохраняем состояние: ждем фото
-  await db.collection('users').doc(userId.toString()).update({
-    waitingForBroadcastPhoto: true,
-  });
-
-  await ctx.reply(
-`📸 *BROADCAST ФОТО*
-
-Теперь отправь мне:
-1. Фото
-2. С текстом (caption) - необязательно
-
-Пример:
-[Отправь фото]
-С подписью: "🎉 Новое обновление!"
-
-⚠️ Фото будет отправлено ВСЕМ пользователям!
-
-Для отмены: /cancel`,
-    { parse_mode: 'Markdown' }
-  );
-});
-
-/**
- * Обработка фото для broadcast
- */
-bot.on('photo', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    return; // Не администратор - игнорируем
-  }
-
-  try {
-    const userDoc = await db.collection('users').doc(userId.toString()).get();
-    const userData = userDoc.data();
-
-    if (!userData?.waitingForBroadcastPhoto) {
-      return; // Не ждем фото - игнорируем
-    }
-
-    // Удаляем флаг ожидания
-    await db.collection('users').doc(userId.toString()).update({
-      waitingForBroadcastPhoto: false,
-    });
-
-    const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Самое большое фото
-    const photoId = photo.file_id;
-    const caption = ctx.message.caption || '';
-
-    await ctx.reply('📤 Отправляю фото всем пользователям...');
-
-    const usersSnapshot = await db.collection('users').get();
-    const users = usersSnapshot.docs.map(doc => ({ id: doc.id }));
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const user of users) {
-      try {
-        await bot.telegram.sendPhoto(user.id, photoId, {
-          caption: caption,
-          parse_mode: 'Markdown',
-          ...getMainMenuKeyboard()
-        });
-        successCount++;
-        await new Promise(resolve => setTimeout(resolve, 50));
-      } catch (error) {
-        failCount++;
-        logger.error(`❌ Не удалось отправить фото пользователю ${user.id}`);
-      }
-    }
-
-    await ctx.reply(
-`✅ *Broadcast фото завершен!*
-
-📊 Статистика:
-• Успешно: ${successCount}/${users.length}
-• Неудачно: ${failCount}
-
-Подпись: "${caption || 'Без подписи'}"`,
-      { parse_mode: 'Markdown' }
-    );
-
-    logger.info(`✅ Broadcast фото завершен: ${successCount} успешно`);
-
-  } catch (error) {
-    logger.error('❌ Ошибка в broadcast фото:', error);
-    await ctx.reply('❌ Ошибка отправки фото');
-  }
-});
-
-// ==================== BROADCAST - ВИДЕО ====================
-/**
- * /broadcast_video
- * Шаг 1: Команда
- * Шаг 2: Отправь видео с подписью
- */
-bot.command('broadcast_video', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    await ctx.reply('❌ У вас нет прав администратора');
-    return;
-  }
-
-  await db.collection('users').doc(userId.toString()).update({
-    waitingForBroadcastVideo: true,
-  });
-
-  await ctx.reply(
-`🎥 *BROADCAST ВИДЕО*
-
-Теперь отправь мне:
-1. Видео
-2. С текстом (caption) - необязательно
-
-⚠️ Видео будет отправлено ВСЕМ пользователям!
-⚠️ Макс размер: 50 MB (ограничение Telegram)
-
-Для отмены: /cancel`,
-    { parse_mode: 'Markdown' }
-  );
-});
-
-/**
- * Обработка видео для broadcast
- */
-bot.on('video', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    return;
-  }
-
-  try {
-    const userDoc = await db.collection('users').doc(userId.toString()).get();
-    const userData = userDoc.data();
-
-    if (!userData?.waitingForBroadcastVideo) {
-      return;
-    }
-
-    await db.collection('users').doc(userId.toString()).update({
-      waitingForBroadcastVideo: false,
-    });
-
-    const video = ctx.message.video;
-    const videoId = video.file_id;
-    const caption = ctx.message.caption || '';
-
-    // Проверка размера видео
-    if (video.file_size > 50 * 1024 * 1024) { // 50 MB
-      await ctx.reply('❌ Видео слишком большое! Макс: 50 MB');
-      return;
-    }
-
-    await ctx.reply('📤 Отправляю видео всем пользователям... (может занять время)');
-
-    const usersSnapshot = await db.collection('users').get();
-    const users = usersSnapshot.docs.map(doc => ({ id: doc.id }));
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const user of users) {
-      try {
-        await bot.telegram.sendVideo(user.id, videoId, {
-          caption: caption,
-          parse_mode: 'Markdown',
-          ...getMainMenuKeyboard()
-        });
-        successCount++;
-        await new Promise(resolve => setTimeout(resolve, 100)); // Больше задержка для видео
-      } catch (error) {
-        failCount++;
-        logger.error(`❌ Не удалось отправить видео пользователю ${user.id}`);
-      }
-    }
-
-    await ctx.reply(
-`✅ *Broadcast видео завершен!*
-
-📊 Статистика:
-• Успешно: ${successCount}/${users.length}
-• Неудачно: ${failCount}
-
-Подпись: "${caption || 'Без подписи'}"`,
-      { parse_mode: 'Markdown' }
-    );
-
-    logger.info(`✅ Broadcast видео завершен: ${successCount} успешно`);
-
-  } catch (error) {
-    logger.error('❌ Ошибка в broadcast видео:', error);
-    await ctx.reply('❌ Ошибка отправки видео');
-  }
-});
-
-// ==================== ОТМЕНА ====================
-bot.command('cancel', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    return;
-  }
-
-  try {
-    await db.collection('users').doc(userId.toString()).update({
-      waitingForBroadcastPhoto: false,
-      waitingForBroadcastVideo: false,
-    });
-
-    await ctx.reply('✅ Операция отменена');
-  } catch (error) {
-    logger.error('Ошибка отмены:', error);
-  }
-});
-
-// ==================== BROADCAST АКТИВНЫМ ====================
-/**
- * /broadcast_active сообщение
- * Отправка только активным пользователям (последние 7 дней)
- */
-bot.command('broadcast_active', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  const adminCheck = await isAdmin(userId);
-  if (!adminCheck) {
-    await ctx.reply('❌ У вас нет прав администратора');
-    return;
-  }
-
-  const messageText = ctx.message.text.replace('/broadcast_active', '').trim();
-  
-  if (!messageText) {
-    await ctx.reply(
-`📣 *BROADCAST АКТИВНЫМ*
-
-Использование:
-\`/broadcast_active ваше сообщение\`
-
-Отправит сообщение только пользователям, которые были активны в последние 7 дней.`,
-      { parse_mode: 'Markdown' }
-    );
-    return;
-  }
-
-  try {
-    await ctx.reply('📤 Отправляю активным пользователям...');
-
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const usersSnapshot = await db.collection('users')
-      .where('lastActivity', '>', sevenDaysAgo)
-      .get();
-
-    const users = usersSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    logger.info(`📣 Broadcast активным: ${users.length} пользователей`);
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const user of users) {
-      try {
-        await bot.telegram.sendMessage(user.id, messageText, {
-          parse_mode: 'Markdown',
-          ...getMainMenuKeyboard()
-        });
-        successCount++;
-        await new Promise(resolve => setTimeout(resolve, 50));
-      } catch (error) {
-        failCount++;
-      }
-    }
-
-    await ctx.reply(
-`✅ *Broadcast активным завершен!*
-
-📊 Статистика:
-• Успешно: ${successCount}/${users.length}
-• Неудачно: ${failCount}`,
-      { parse_mode: 'Markdown' }
-    );
-
-  } catch (error) {
-    logger.error('❌ Ошибка в broadcast_active:', error);
-    await ctx.reply(`❌ Ошибка: ${error.message}`);
-  }
-});
-
-// ==================== ПАНЕЛЬ АДМИНИСТРАТОРА ====================
+// ==================== ГЛАВНОЕ МЕНЮ АДМИНИСТРАТОРА ====================
 bot.command('admin', async (ctx) => {
   const userId = ctx.from.id;
   
@@ -1605,25 +1141,13 @@ bot.command('admin', async (ctx) => {
 • Всего выполнено: ${completedQuests}
 • Процент выполнения: ${completionRate}%
 
-📣 Доступные команды:
-
-*Текст:*
-• /broadcast - Всем
-• /broadcast_active - Активным
-
-*Медиа:*
-• /broadcast_photo - Фото всем
-• /broadcast_video - Видео всем
-
-*Управление:*
-• /admin_list - Список админов
-• /admin_logout - Выход
-• /cancel - Отменить операцию
-
-Your ID: \`${userId}\`
+*Выберите действие ниже:* 👇
     `.trim();
 
-    await ctx.reply(adminMessage, { parse_mode: 'Markdown' });
+    await ctx.reply(adminMessage, { 
+      parse_mode: 'Markdown',
+      ...getAdminKeyboard()
+    });
 
   } catch (error) {
     logger.error('❌ Ошибка в команде admin:', error);
@@ -1631,7 +1155,567 @@ Your ID: \`${userId}\`
   }
 });
 
+/**
+ * Callback для обновления меню
+ */
+bot.action('admin_menu', async (ctx) => {
+  await ctx.answerCbQuery();
+  
+  const userId = ctx.from.id;
+  const adminCheck = await isAdmin(userId);
+  
+  if (!adminCheck) {
+    await ctx.reply('❌ У вас нет прав администратора');
+    return;
+  }
+
+  try {
+    const usersSnapshot = await db.collection('users').get();
+    const users = usersSnapshot.docs.map(doc => doc.data());
+
+    const totalUsers = users.length;
+    const activeUsers = users.filter(u => {
+      const lastActivity = u.lastActivity?.toDate?.() || new Date(0);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return lastActivity > sevenDaysAgo;
+    }).length;
+
+    const totalQuests = users.reduce((sum, u) => sum + (u.stats?.totalQuests || 0), 0);
+    const completedQuests = users.reduce((sum, u) => sum + (u.stats?.completedQuests || 0), 0);
+    const adminsCount = users.filter(u => u.isAdmin === true).length;
+    const completionRate = totalQuests > 0 ? Math.round((completedQuests / totalQuests) * 100) : 0;
+
+    const adminMessage = `
+🔧 *ПАНЕЛЬ АДМИНИСТРАТОРА*
+
+👥 Пользователи:
+• Всего: ${totalUsers}
+• Активных (7 дней): ${activeUsers}
+• Администраторов: ${adminsCount}
+
+📋 Квесты:
+• Всего создано: ${totalQuests}
+• Всего выполнено: ${completedQuests}
+• Процент выполнения: ${completionRate}%
+
+*Выберите действие ниже:* 👇
+    `.trim();
+
+    await ctx.editMessageText(adminMessage, { 
+      parse_mode: 'Markdown',
+      ...getAdminKeyboard()
+    });
+
+  } catch (error) {
+    logger.error('Ошибка обновления меню:', error);
+  }
+});
+
+// ==================== BROADCAST TEXT (ЧЕРЕЗ КНОПКУ) ====================
+bot.action('admin_broadcast_text', async (ctx) => {
+  await ctx.answerCbQuery();
+  
+  const userId = ctx.from.id;
+  const adminCheck = await isAdmin(userId);
+  
+  if (!adminCheck) {
+    return;
+  }
+
+  await ctx.editMessageText(
+`📣 *BROADCAST TEXT*
+
+Теперь отправьте текстовое сообщение, которое нужно разослать всем пользователям.
+
+*Поддерживается Markdown:*
+• \`**Жирный**\` → **Жирный**
+• \`_Курсив_\` → _Курсив_
+• \`\\\`Код\\\`\` → \`Код\`
+
+Для отмены: /cancel`,
+    { 
+      parse_mode: 'Markdown',
+      ...getBackToAdminKeyboard()
+    }
+  );
+
+  // Устанавливаем флаг ожидания broadcast
+  await db.collection('users').doc(userId.toString()).update({
+    waitingForBroadcastText: true,
+  });
+});
+
+/**
+ * Обработка текста для broadcast
+ */
+bot.on('text', async (ctx, next) => {
+  const userId = ctx.from.id;
+  
+  // Пропускаем команды
+  if (ctx.message.text.startsWith('/')) {
+    return next();
+  }
+
+  const adminCheck = await isAdmin(userId);
+  if (!adminCheck) {
+    return next();
+  }
+
+  try {
+    const userDoc = await db.collection('users').doc(userId.toString()).get();
+    const userData = userDoc.data();
+
+    if (!userData?.waitingForBroadcastText) {
+      return next();
+    }
+
+    // Удаляем флаг
+    await db.collection('users').doc(userId.toString()).update({
+      waitingForBroadcastText: false,
+    });
+
+    const messageText = ctx.message.text;
+
+    await ctx.reply('📤 Отправляю сообщение всем пользователям...');
+
+    const usersSnapshot = await db.collection('users').get();
+    const users = usersSnapshot.docs.map(doc => ({ id: doc.id }));
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const user of users) {
+      try {
+        await bot.telegram.sendMessage(user.id, messageText, {
+          parse_mode: 'Markdown',
+          ...getMainMenuKeyboard()
+        });
+        successCount++;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (error) {
+        failCount++;
+      }
+    }
+
+    await ctx.reply(
+`✅ *Broadcast завершен!*
+
+📊 Статистика:
+• Успешно: ${successCount}/${users.length}
+• Неудачно: ${failCount}
+
+Используйте /admin для возврата в меню`,
+      { parse_mode: 'Markdown' }
+    );
+
+    logger.info(`✅ Broadcast завершен: ${successCount} успешно`);
+
+  } catch (error) {
+    logger.error('Ошибка broadcast:', error);
+    await ctx.reply('❌ Ошибка отправки');
+  }
+});
+
+// ==================== BROADCAST PHOTO (ЧЕРЕЗ КНОПКУ) ====================
+bot.action('admin_broadcast_photo', async (ctx) => {
+  await ctx.answerCbQuery();
+  
+  const userId = ctx.from.id;
+  const adminCheck = await isAdmin(userId);
+  
+  if (!adminCheck) {
+    return;
+  }
+
+  await db.collection('users').doc(userId.toString()).update({
+    waitingForBroadcastPhoto: true,
+  });
+
+  await ctx.editMessageText(
+`📸 *BROADCAST ФОТО*
+
+Теперь отправьте фото с подписью (caption).
+
+⚠️ Фото будет отправлено ВСЕМ пользователям!
+
+Для отмены: /cancel`,
+    { 
+      parse_mode: 'Markdown',
+      ...getBackToAdminKeyboard()
+    }
+  );
+});
+
+bot.on('photo', async (ctx) => {
+  const userId = ctx.from.id;
+  
+  const adminCheck = await isAdmin(userId);
+  if (!adminCheck) {
+    return;
+  }
+
+  try {
+    const userDoc = await db.collection('users').doc(userId.toString()).get();
+    const userData = userDoc.data();
+
+    if (!userData?.waitingForBroadcastPhoto) {
+      return;
+    }
+
+    await db.collection('users').doc(userId.toString()).update({
+      waitingForBroadcastPhoto: false,
+    });
+
+    const photo = ctx.message.photo[ctx.message.photo.length - 1];
+    const photoId = photo.file_id;
+    const caption = ctx.message.caption || '';
+
+    await ctx.reply('📤 Отправляю фото всем пользователям...');
+
+    const usersSnapshot = await db.collection('users').get();
+    const users = usersSnapshot.docs.map(doc => ({ id: doc.id }));
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const user of users) {
+      try {
+        await bot.telegram.sendPhoto(user.id, photoId, {
+          caption: caption,
+          parse_mode: 'Markdown',
+          ...getMainMenuKeyboard()
+        });
+        successCount++;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (error) {
+        failCount++;
+      }
+    }
+
+    await ctx.reply(
+`✅ *Broadcast фото завершен!*
+
+📊 Успешно: ${successCount}/${users.length}
+❌ Неудачно: ${failCount}
+
+/admin - Вернуться в меню`,
+      { parse_mode: 'Markdown' }
+    );
+
+  } catch (error) {
+    logger.error('Ошибка broadcast фото:', error);
+    await ctx.reply('❌ Ошибка отправки фото');
+  }
+});
+
+// ==================== BROADCAST VIDEO (ЧЕРЕЗ КНОПКУ) ====================
+bot.action('admin_broadcast_video', async (ctx) => {
+  await ctx.answerCbQuery();
+  
+  const userId = ctx.from.id;
+  const adminCheck = await isAdmin(userId);
+  
+  if (!adminCheck) {
+    return;
+  }
+
+  await db.collection('users').doc(userId.toString()).update({
+    waitingForBroadcastVideo: true,
+  });
+
+  await ctx.editMessageText(
+`🎥 *BROADCAST ВИДЕО*
+
+Теперь отправьте видео с подписью.
+
+⚠️ Макс размер: 50 MB
+⚠️ Видео будет отправлено ВСЕМ!
+
+Для отмены: /cancel`,
+    { 
+      parse_mode: 'Markdown',
+      ...getBackToAdminKeyboard()
+    }
+  );
+});
+
+bot.on('video', async (ctx) => {
+  const userId = ctx.from.id;
+  
+  const adminCheck = await isAdmin(userId);
+  if (!adminCheck) {
+    return;
+  }
+
+  try {
+    const userDoc = await db.collection('users').doc(userId.toString()).get();
+    const userData = userDoc.data();
+
+    if (!userData?.waitingForBroadcastVideo) {
+      return;
+    }
+
+    await db.collection('users').doc(userId.toString()).update({
+      waitingForBroadcastVideo: false,
+    });
+
+    const video = ctx.message.video;
+    const videoId = video.file_id;
+    const caption = ctx.message.caption || '';
+
+    if (video.file_size > 50 * 1024 * 1024) {
+      await ctx.reply('❌ Видео слишком большое! Макс: 50 MB');
+      return;
+    }
+
+    await ctx.reply('📤 Отправляю видео... (может занять время)');
+
+    const usersSnapshot = await db.collection('users').get();
+    const users = usersSnapshot.docs.map(doc => ({ id: doc.id }));
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const user of users) {
+      try {
+        await bot.telegram.sendVideo(user.id, videoId, {
+          caption: caption,
+          parse_mode: 'Markdown',
+          ...getMainMenuKeyboard()
+        });
+        successCount++;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        failCount++;
+      }
+    }
+
+    await ctx.reply(
+`✅ *Broadcast видео завершен!*
+
+📊 Успешно: ${successCount}/${users.length}
+❌ Неудачно: ${failCount}
+
+/admin - Вернуться в меню`,
+      { parse_mode: 'Markdown' }
+    );
+
+  } catch (error) {
+    logger.error('Ошибка broadcast видео:', error);
+    await ctx.reply('❌ Ошибка отправки видео');
+  }
+});
+
+// ==================== СТАТИСТИКА (ЧЕРЕЗ КНОПКУ) ====================
+bot.action('admin_stats', async (ctx) => {
+  await ctx.answerCbQuery('Загружаю статистику...');
+  
+  const userId = ctx.from.id;
+  const adminCheck = await isAdmin(userId);
+  
+  if (!adminCheck) {
+    return;
+  }
+
+  try {
+    const usersSnapshot = await db.collection('users').get();
+    const users = usersSnapshot.docs.map(doc => doc.data());
+
+    const totalUsers = users.length;
+    const activeUsers = users.filter(u => {
+      const lastActivity = u.lastActivity?.toDate?.() || new Date(0);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return lastActivity > sevenDaysAgo;
+    }).length;
+
+    const totalQuests = users.reduce((sum, u) => sum + (u.stats?.totalQuests || 0), 0);
+    const completedQuests = users.reduce((sum, u) => sum + (u.stats?.completedQuests || 0), 0);
+    const completionRate = totalQuests > 0 ? Math.round((completedQuests / totalQuests) * 100) : 0;
+
+    // Топ 5 пользователей по XP
+    const topUsers = users
+      .sort((a, b) => (b.xp || 0) - (a.xp || 0))
+      .slice(0, 5)
+      .map((u, i) => `${i + 1}. ${u.name || 'Неизвестный'} - ${u.xp || 0} XP`)
+      .join('\n');
+
+    await ctx.editMessageText(
+`📊 *ДЕТАЛЬНАЯ СТАТИСТИКА*
+
+👥 *Пользователи:*
+• Всего: ${totalUsers}
+• Активных (7 дней): ${activeUsers}
+• Процент активных: ${Math.round((activeUsers / totalUsers) * 100)}%
+
+📋 *Квесты:*
+• Создано: ${totalQuests}
+• Выполнено: ${completedQuests}
+• Завершенность: ${completionRate}%
+
+🏆 *Топ 5 по XP:*
+${topUsers || 'Нет данных'}`,
+      { 
+        parse_mode: 'Markdown',
+        ...getBackToAdminKeyboard()
+      }
+    );
+
+  } catch (error) {
+    logger.error('Ошибка загрузки статистики:', error);
+    await ctx.reply('❌ Ошибка загрузки данных');
+  }
+});
+
+// ==================== СПИСОК АДМИНОВ (ЧЕРЕЗ КНОПКУ) ====================
+bot.action('admin_list_show', async (ctx) => {
+  await ctx.answerCbQuery();
+  
+  const userId = ctx.from.id;
+  const adminCheck = await isAdmin(userId);
+  
+  if (!adminCheck) {
+    return;
+  }
+
+  try {
+    const adminsSnapshot = await db.collection('users')
+      .where('isAdmin', '==', true)
+      .get();
+
+    const admins = adminsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name || 'Неизвестный',
+        adminSince: data.adminSince?.toDate?.() || null,
+      };
+    });
+
+    const adminList = admins.map((admin, index) => {
+      const since = admin.adminSince 
+        ? admin.adminSince.toLocaleDateString('ru-RU')
+        : 'Неизвестно';
+      return `${index + 1}. ${admin.name}\n   ID: \`${admin.id}\`\n   С: ${since}`;
+    }).join('\n\n');
+
+    await ctx.editMessageText(
+`👥 *Список администраторов (${admins.length})*
+
+${adminList}`,
+      { 
+        parse_mode: 'Markdown',
+        ...getBackToAdminKeyboard()
+      }
+    );
+
+  } catch (error) {
+    logger.error('Ошибка загрузки админов:', error);
+  }
+});
+
+// ==================== ВЫХОД (ПОДТВЕРЖДЕНИЕ) ====================
+bot.action('admin_logout_confirm', async (ctx) => {
+  await ctx.answerCbQuery();
+  
+  await ctx.editMessageText(
+`🚪 *Выход из админ-панели*
+
+Вы уверены, что хотите выйти?
+
+После выхода нужно будет снова использовать /admin_login для входа.`,
+    { 
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            Markup.button.callback('✅ Да, выйти', 'admin_logout_yes'),
+            Markup.button.callback('❌ Отмена', 'admin_menu'),
+          ],
+        ],
+      },
+    }
+  );
+});
+
+bot.action('admin_logout_yes', async (ctx) => {
+  await ctx.answerCbQuery('Выходим...');
+  
+  const userId = ctx.from.id;
+
+  try {
+    await db.collection('users').doc(userId.toString()).update({
+      isAdmin: false,
+      lastAdminLogout: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await ctx.editMessageText(
+`👋 *Вы вышли из админ-панели*
+
+Для повторного входа используйте:
+\`/admin_login ваш_пароль\`
+
+До встречи!`,
+      { parse_mode: 'Markdown' }
+    );
+
+    logger.info(`📤 Администратор вышел: ${userId}`);
+
+  } catch (error) {
+    logger.error('Ошибка выхода:', error);
+    await ctx.reply('❌ Ошибка выхода');
+  }
+});
+
+// ==================== КОМАНДА ВЫХОДА ====================
+bot.command('admin_logout', async (ctx) => {
+  const userId = ctx.from.id;
+  
+  const adminCheck = await isAdmin(userId);
+  if (!adminCheck) {
+    return;
+  }
+
+  try {
+    await db.collection('users').doc(userId.toString()).update({
+      isAdmin: false,
+      lastAdminLogout: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await ctx.reply('👋 Вы вышли из админ-панели!\n\nДля входа: /admin_login');
+    logger.info(`📤 Администратор вышел: ${userId}`);
+
+  } catch (error) {
+    logger.error('Ошибка выхода:', error);
+    await ctx.reply('❌ Ошибка выхода');
+  }
+});
+
+// ==================== ОТМЕНА ====================
+bot.command('cancel', async (ctx) => {
+  const userId = ctx.from.id;
+  
+  const adminCheck = await isAdmin(userId);
+  if (!adminCheck) {
+    return;
+  }
+
+  try {
+    await db.collection('users').doc(userId.toString()).update({
+      waitingForBroadcastText: false,
+      waitingForBroadcastPhoto: false,
+      waitingForBroadcastVideo: false,
+    });
+
+    await ctx.reply('✅ Операция отменена\n\nИспользуйте /admin для возврата в меню');
+  } catch (error) {
+    logger.error('Ошибка отмены:', error);
+  }
+});
+
 // ==================== КОНЕЦ КОДА ====================
+
   
   const helpMessage = `❓ СПРАВКА ПО КОМАНДАМ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
