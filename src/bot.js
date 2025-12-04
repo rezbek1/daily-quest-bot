@@ -1400,7 +1400,8 @@ bot.action('set_time_23', setReminderTime('23:00'));
  */
 const TIMEZONES = [
   'Europe/Moscow', 'Europe/London', 'Europe/Paris', 'Europe/Berlin',
-  'America/New_York', 'America/Los_Angeles', 'Asia/Shanghai', 'Asia/Tokyo'
+  'America/New_York', 'America/Los_Angeles', 'Asia/Shanghai', 'Asia/Tokyo',
+  'Asia/Jerusalem'  // ישראל 🇮🇱
 ];
 /**
  * Меню выбора часового пояса
