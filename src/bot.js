@@ -988,10 +988,8 @@ bot.command('help', async (ctx) => {
 });
 
 // ==================== КОНФИГУРАЦИЯ АДМИНА ====================
-const ADMIN_PASSWORD = ...
-  
-// ==================== КОНФИГУРАЦИЯ ====================
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme123';
+  
 
 async function isAdmin(userId) {
   try {
