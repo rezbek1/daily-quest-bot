@@ -1070,11 +1070,6 @@ bot.command('admin_login', async (ctx) => {
 
   const password = ctx.message.text.replace('/admin_login', '').trim();
   
-  // 🔍 DEBUG - הוסף את זה כאן:
-  logger.info(`🔍 DEBUG: Password from user: "${password}"`);
-  logger.info(`🔍 DEBUG: ADMIN_PASSWORD from env: "${ADMIN_PASSWORD}"`);
-  logger.info(`🔍 DEBUG: Are they equal? ${password === ADMIN_PASSWORD}`);
-  
 
   if (password !== ADMIN_PASSWORD) {
     logger.warn(`❌ Неудачная попытка входа: ${userName} (${userId})`);
