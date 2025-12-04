@@ -985,8 +985,7 @@ ${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
 
 // ==================== КОНФИГУРАЦИЯ АДМИНА ====================
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme123';
-logger.info(`🔐 ADMIN_PASSWORD loaded from env: ${process.env.ADMIN_PASSWORD ? 'YES' : 'NO'}`);
-logger.info(`🔐 Using password: ${ADMIN_PASSWORD}`);  
+
 
 async function isAdmin(userId) {
   try {
