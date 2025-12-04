@@ -1044,6 +1044,20 @@ bot.command('admin_login', async (ctx) => {
   } catch (e) {}
 
   const password = ctx.message.text.replace('/admin_login', '').trim();
+ // 🔍 DEBUG - נראה בדיוק מה קורה
+  logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  logger.info(`🔍 FULL MESSAGE: "${ctx.message.text}"`);
+  logger.info(`🔍 PASSWORD EXTRACTED: "${password}"`);
+  logger.info(`🔍 PASSWORD LENGTH: ${password.length} chars`);
+  logger.info(`🔍 PASSWORD BYTES: ${Buffer.from(password).toString('hex')}`);
+  logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  logger.info(`🔑 ADMIN_PASSWORD: "${ADMIN_PASSWORD}"`);
+  logger.info(`🔑 ADMIN_PASSWORD LENGTH: ${ADMIN_PASSWORD.length} chars`);
+  logger.info(`🔑 ADMIN_PASSWORD BYTES: ${Buffer.from(ADMIN_PASSWORD).toString('hex')}`);
+  logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  logger.info(`✅ MATCH: ${password === ADMIN_PASSWORD}`);
+  logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  
   
   if (!password) {
     await ctx.reply(
