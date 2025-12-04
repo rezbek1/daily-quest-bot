@@ -982,10 +982,6 @@ ${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
   }
 });
 
-bot.command('help', async (ctx) => {
-  const helpMessage = `...`;
-  await ctx.reply(helpMessage, getMainMenuKeyboard());
-});
 
 // ==================== КОНФИГУРАЦИЯ АДМИНА ====================
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme123';
@@ -1720,7 +1716,7 @@ bot.command('cancel', async (ctx) => {
 
 // ==================== КОНЕЦ КОДА ====================
 
-  
+bot.command('help', async (ctx) => {  
   const helpMessage = `❓ СПРАВКА ПО КОМАНДАМ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
