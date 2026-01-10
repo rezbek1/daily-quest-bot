@@ -117,20 +117,49 @@ async function handleLeaderboard(ctx) {
   const userId = ctx.from.id;
   
   try {
-    const usersSnapshot = await db.collection('users').orderBy('xp', 'desc').limit(10).get();
-
-    let message = '🏆 ГЛОБАЛЬНЫЙ ЛИДЕРБОРД СТРАДАНИЙ\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-    const medals = ['🥇', '🥈', '🥉'];
+    // Получить ВСЕ пользователей отсортированные по XP
+    const allUsersSnapshot = await db.collection('users').orderBy('xp', 'desc').get();
+    
+    let topUsers = [];
+    let userPosition = null;
     let position = 1;
 
-    usersSnapshot.forEach((doc) => {
+    allUsersSnapshot.forEach((doc) => {
       const user = doc.data();
-      const medal = medals[position - 1] || `${position}.`;
-      message += `${medal} ${user.name.substring(0, 15)} | Ур. ${user.level} | ${user.xp} XP\n`;
+      
+      // Добавить в топ если это топ-3
+      if (position <= 3) {
+        topUsers.push({ name: user.name, level: user.level, xp: user.xp, position });
+      }
+      
+      // Найти позицию текущего пользователя
+      if (doc.id === userId.toString()) {
+        userPosition = position;
+      }
+      
       position++;
     });
 
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nЭто боль, облаченная в XP.`;
+    // Построить сообщение
+    let message = '🏆 ЛИДЕРБОРД\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    const medals = ['🥇', '🥈', '🥉'];
+
+    // Показать только топ-3
+    topUsers.forEach((user, idx) => {
+      const medal = medals[idx];
+      message += `${medal} ${user.name.substring(0, 15)} - Ур. ${user.level}\n`;
+    });
+
+    // Показать позицию пользователя
+    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    if (userPosition) {
+      message += `\n📍 Ты на ${userPosition} месте`;
+    } else {
+      message += `\n📍 Ты еще не в рейтинге`;
+    }
+    
+    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    
     await ctx.reply(message, getMainMenuKeyboard());
   } catch (error) {
     logger.error('❌ Ошибка /leaderboard:', error);
