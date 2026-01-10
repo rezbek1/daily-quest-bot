@@ -24,20 +24,3 @@ function getMainMenuKeyboard() {
 }
 
 module.exports = { getMainMenuKeyboard };
-
----
-
-/**
- * ⌨️ TIMEZONE KEYBOARD - keyboard/timezone.js
- */
-
-const { Markup } = require('telegraf');
-
-function getTzKeyboard(TIMEZONES) {
-  return Markup.inlineKeyboard(
-    TIMEZONES.map(tz => [Markup.button.callback(tz, `tz_${tz}`)]),
-    { columns: 2 }
-  );
-}
-
-module.exports = { getTzKeyboard };
