@@ -4,56 +4,59 @@
  */
 
 const logger = require('../../logger');
-const { db } = require('../../db');
+const dbModule = require('../../db');
 
 /**
  * Создать или обновить пользователя
  */
 async function createOrUpdateUser(userId, userData) {
   try {
-    const userRef = db.db.collection('users').doc(userId.toString());
-    const currentUser = await userRef.get();
-
-    if (!currentUser.exists) {
-      // Создать новый пользователь
-      await userRef.set({
-        userId: userId.toString(),
-        name: userData.first_name || 'Аноним',
-        username: userData.username || `user_${userId}`,
-        level: 1,
-        xp: 0,
-        totalQuestsCompleted: 0,
-        badges: ['Первый день'],
-        theme: 'black',
-        settings: { 
-          reminderTime: '19:00', 
-          language: 'ru', 
-          weeklyReportDay: 'sunday', 
-          timezone: 'Europe/Moscow' 
-        },
-        createdAt: new Date(),
-        lastActiveAt: new Date(),
-        streak: 1,
-        activityLog: [{
-          date: new Date().toDateString(),
-          questsCompleted: 0,
-          xpGained: 0,
-          timestamp: new Date()
-        }],
-      });
+    // Используем функцию из db.js
+    const result = await dbModule.createOrUpdateUser(userId, {
+      first_name: userData.first_name || 'Аноним',
+      username: userData.username || `user_${userId}`,
+    });
+    
+    if (result) {
       logger.info(`✅ Новый пользователь создан: ${userId}`);
-      return true;
     } else {
-      // Обновить lastActiveAt
-      await userRef.update({ lastActiveAt: new Date() });
-      return false;
+      logger.info(`✅ Пользователь обновлен: ${userId}`);
     }
+    
+    return result;
   } catch (error) {
     logger.error('❌ Ошибка создания пользователя:', error);
     return null;
   }
 }
 
+/**
+ * Получить пользователя
+ */
+async function getUser(userId) {
+  try {
+    return await dbModule.getUser(userId);
+  } catch (error) {
+    logger.error(`❌ Ошибка получения пользователя ${userId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Обновить пользователя
+ */
+async function updateUser(userId, data) {
+  try {
+    await dbModule.updateUser(userId, data);
+    return true;
+  } catch (error) {
+    logger.error(`❌ Ошибка обновления пользователя ${userId}:`, error);
+    return false;
+  }
+}
+
 module.exports = {
   createOrUpdateUser,
+  getUser,
+  updateUser,
 };

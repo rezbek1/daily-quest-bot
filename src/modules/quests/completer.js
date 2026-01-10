@@ -11,7 +11,7 @@ const { db } = require('../../db');
  */
 async function completeQuest(userId, questId) {
   try {
-    const questRef = db.db.collection('quests').doc(questId);
+    const questRef = db.collection('quests').doc(questId);
     const questDoc = await questRef.get();
 
     if (!questDoc.exists) {
@@ -30,7 +30,7 @@ async function completeQuest(userId, questId) {
     await questRef.update({ completed: true, completedAt: new Date() });
 
     // Получить пользователя
-    const userRef = db.db.collection('users').doc(userId.toString());
+    const userRef = db.collection('users').doc(userId.toString());
     const userDoc = await userRef.get();
     const user = userDoc.data();
 
@@ -101,7 +101,7 @@ async function completeQuest(userId, questId) {
  */
 async function updateStreak(userId) {
   try {
-    const userRef = db.db.collection('users').doc(userId.toString());
+    const userRef = db.collection('users').doc(userId.toString());
     const userDoc = await userRef.get();
     const user = userDoc.data();
     
