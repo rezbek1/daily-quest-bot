@@ -238,6 +238,8 @@ async function handleMenuLeaderboard(ctx) {
 
     const usersSnapshot = await db.collection('users').get();
     const allUsers = [];
+    let userPosition = null;
+    let position = 1;
     
     usersSnapshot.forEach(doc => {
       const userData = doc.data();
@@ -246,18 +248,40 @@ async function handleMenuLeaderboard(ctx) {
         name: userData.name,
         completed: userData.totalQuestsCompleted || 0,
         streak: userData.streak || 0,
+        position: position,
       });
+      position++;
     });
 
+    // Сортируем по квестам
     allUsers.sort((a, b) => b.completed - a.completed);
 
+    // Переназначим позиции после сортировки
+    allUsers.forEach((u, i) => {
+      u.position = i + 1;
+      if (u.userId === userId.toString()) {
+        userPosition = u.position;
+      }
+    });
+
+    // Показываем только топ-3
     let message = '🏆 ЛИДЕРБОРД\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
     const medals = ['🥇', '🥈', '🥉'];
 
-    allUsers.slice(0, 10).forEach((u, i) => {
-      const medal = medals[i] || `${i + 1}.`;
-      message += `${medal} ${u.name} - ${u.completed} квестов (🔥${u.streak} дн)\n`;
+    allUsers.slice(0, 3).forEach((u, i) => {
+      const medal = medals[i];
+      message += `${medal} ${u.name.substring(0, 15)} - ${u.completed} квестов (🔥${u.streak} дн)\n`;
     });
+
+    // Показываем позицию пользователя
+    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    if (userPosition) {
+      message += `\n📍 Ты на ${userPosition} месте`;
+    } else {
+      message += `\n📍 Ты еще не в рейтинге`;
+    }
+    
+    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
     await ctx.reply(message, getMainMenuKeyboard());
   } catch (error) {
