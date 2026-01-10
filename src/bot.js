@@ -12,6 +12,7 @@ const admin = require('firebase-admin');
 const axios = require('axios');
 const cron = require('node-cron');
 const moment = require('moment-timezone');
+const { isShabbat, getShabbatInfo } = require('./shabbat');
 
 dotenv.config();
 
