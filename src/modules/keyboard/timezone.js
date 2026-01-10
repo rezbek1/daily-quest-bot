@@ -4,11 +4,12 @@
  */
 
 const { Markup } = require('telegraf');
+const { TIMEZONES } = require('../timezone');
 
 /**
  * Получить клавиатуру часовых поясов
  */
-function getTzKeyboard(TIMEZONES) {
+function getTzKeyboard() {
   return Markup.inlineKeyboard(
     TIMEZONES.map(tz => [Markup.button.callback(tz, `tz_${tz}`)]),
     { columns: 2 }
