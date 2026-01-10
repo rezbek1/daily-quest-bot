@@ -2148,9 +2148,47 @@ bot.action('set_time_23', setReminderTime('23:00'));
  * Список часовых поясов
  */
 const TIMEZONES = [
-  'Europe/Moscow', 'Europe/London', 'Europe/Paris', 'Europe/Berlin',
-  'America/New_York', 'America/Los_Angeles', 'Asia/Shanghai', 'Asia/Tokyo',
-  'Asia/Jerusalem'  // ישראל 🇮🇱
+  // ============ ЕВРОПА (9) ============
+  'Europe/Moscow',      // 🇷🇺 Россия (UTC+3)
+  'Europe/London',      // 🇬🇧 Великобритания (UTC+0)
+  'Europe/Paris',       // 🇫🇷 Франция (UTC+1)
+  'Europe/Berlin',      // 🇩🇪 Германия (UTC+1)
+  'Europe/Athens',      // 🇬🇷 Греция (UTC+2)
+  'Europe/Stockholm',   // 🇸🇪 Швеция (UTC+1)
+  'Europe/Istanbul',    // 🇹🇷 Турция (UTC+3)
+  'Europe/Madrid',      // 🇪🇸 Испания (UTC+1)
+  'Europe/Rome',        // 🇮🇹 Италия (UTC+1)
+
+  // ============ АМЕРИКА (7) ============
+  'America/New_York',       // 🇺🇸 Нью-Йорк (UTC-5)
+  'America/Toronto',        // 🇨🇦 Торонто (UTC-5)
+  'America/Chicago',        // 🇺🇸 Чикаго (UTC-6)
+  'America/Denver',         // 🇺🇸 Денвер (UTC-7)
+  'America/Los_Angeles',    // 🇺🇸 Лос-Анджелес (UTC-8)
+  'America/Sao_Paulo',      // 🇧🇷 Сан-Паулу (UTC-3)
+  'America/Mexico_City',    // 🇲🇽 Мехико (UTC-6)
+
+  // ============ АЗИЯ (10) ============
+  'Asia/Jerusalem',     // 🇮🇱 Израиль (UTC+2) - SHABBAT!
+  'Asia/Dubai',         // 🇦🇪 ОАЭ (UTC+4)
+  'Asia/Kolkata',       // 🇮🇳 Индия (UTC+5:30)
+  'Asia/Bangkok',       // 🇹🇭 Таиланд (UTC+7)
+  'Asia/Shanghai',      // 🇨🇳 Китай (UTC+8)
+  'Asia/Hong_Kong',     // 🇭🇰 Гонконг (UTC+8)
+  'Asia/Singapore',     // 🇸🇬 Сингапур (UTC+8)
+  'Asia/Tokyo',         // 🇯🇵 Япония (UTC+9)
+  'Asia/Seoul',         // 🇰🇷 Корея (UTC+9)
+  'Asia/Manila',        // 🇵🇭 Филиппины (UTC+8)
+
+  // ============ АВСТРАЛИЯ (3) ============
+  'Australia/Sydney',      // 🇦🇺 Сидней (UTC+11/+10)
+  'Australia/Melbourne',   // 🇦🇺 Мельбурн (UTC+11/+10)
+  'Pacific/Auckland',      // 🇳🇿 Новая Зеландия (UTC+13/+12)
+
+  // ============ АФРИКА (3) ============
+  'Africa/Cairo',         // 🇪🇬 Каир (UTC+2)
+  'Africa/Johannesburg',  // 🇿🇦 Йоханнесбург (UTC+2)
+  'Africa/Nairobi',       // 🇰🇪 Найроби (UTC+3)
 ];
 /**
  * Меню выбора часового пояса
