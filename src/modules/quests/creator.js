@@ -43,7 +43,7 @@ async function createQuest(userId, taskDescription) {
       completedAt: null,
     };
 
-    const questRef = db.db.collection('quests').doc();
+    const questRef = db.collection('quests').doc();
     await questRef.set(questData);
 
     logger.info(`✅ Квест #${questData.questNumber} создан: "${taskDescription}"`);

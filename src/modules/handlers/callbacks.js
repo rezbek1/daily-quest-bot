@@ -71,7 +71,7 @@ async function handleQuestDelete(ctx) {
   const userId = ctx.from.id;
 
   try {
-    const questRef = db.db.collection('quests').doc(questId);
+    const questRef = db.collection('quests').doc(questId);
     const questDoc = await questRef.get();
 
     if (!questDoc.exists) {
