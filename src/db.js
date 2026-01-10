@@ -180,6 +180,17 @@ async function addFeedback(userId, text) {
 
 // ==================== ЭКСПОРТ ====================
 
+// Добавляем функции к db объекту
+db.getUser = getUser;
+db.createOrUpdateUser = createOrUpdateUser;
+db.updateUser = updateUser;
+db.createQuest = createQuest;
+db.getActiveQuests = getActiveQuests;
+db.updateQuest = updateQuest;
+db.deleteQuest = deleteQuest;
+db.addAnalytics = addAnalytics;
+db.addFeedback = addFeedback;
+
 module.exports = {
   db,
   
