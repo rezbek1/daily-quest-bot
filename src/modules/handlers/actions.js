@@ -259,7 +259,8 @@ async function handleMenuLeaderboard(ctx) {
     // Переназначим позиции после сортировки
     allUsers.forEach((u, i) => {
       u.position = i + 1;
-      if (u.userId === userId.toString()) {
+      // Правильно сравниваем userId (приводим оба к строке)
+      if (String(u.userId) === String(userId)) {
         userPosition = u.position;
       }
     });

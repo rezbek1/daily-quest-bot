@@ -132,8 +132,8 @@ async function handleLeaderboard(ctx) {
         topUsers.push({ name: user.name, level: user.level, xp: user.xp, position });
       }
       
-      // Найти позицию текущего пользователя
-      if (doc.id === userId.toString()) {
+      // Найти позицию текущего пользователя (правильно сравниваем userId)
+      if (String(user.userId) === String(userId)) {
         userPosition = position;
       }
       
