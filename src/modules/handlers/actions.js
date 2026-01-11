@@ -9,6 +9,7 @@ const { getMainMenuKeyboard, getAdminKeyboard } = require('../keyboard');
 const { getTzKeyboard } = require('../keyboard/timezone');
 const { getUser } = require('../users');
 const { getActiveQuests, getTodayQuests } = require('../quests');
+const { getQuoteOfDay } = require('../../utils/quotes');
 const moment = require('moment-timezone');
 
 /**
@@ -207,9 +208,10 @@ async function handleMenuHome(ctx) {
   }
 
   const xpProgress = Math.round((user.xp % 300) / 3);
+  const quoteOfDay = await getQuoteOfDay(); // Теперь await потому что async
 
   const message = `💬 ЦИТАТА ДНЯ:
-"Успешный предприниматель - это тот, кто научился скрывать панику"
+"${quoteOfDay}"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
