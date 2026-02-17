@@ -26,7 +26,6 @@ async function handleAdminLogin(ctx) {
     logger.info(`🔐 Попытка входа админа от ${userId}`);
 
     const password = ctx.message.text.split(' ').slice(1).join(' ').trim();
-    logger.info(`🔐 Введённый пароль: "${password}", ожидаемый: "${config.ADMIN_PASSWORD}"`);
 
     if (!password) {
       await ctx.reply('🔐 Использование: /admin_login [пароль]');
