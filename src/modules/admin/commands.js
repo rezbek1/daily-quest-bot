@@ -22,7 +22,7 @@ function register(bot) {
  */
 async function handleAdminLogin(ctx) {
   const userId = ctx.from.id;
-  const password = ctx.message.text.replace('/admin_login ', '').trim();
+  const password = ctx.message.text.split(' ').slice(1).join(' ').trim();
 
   if (!password) {
     await ctx.reply('🔐 Использование: /admin_login [пароль]');
