@@ -18,7 +18,8 @@ const config = {
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',
   
   // ==================== ADMIN ====================
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',
+  // Railway блокирует ADMIN_PASSWORD, используем BOT_ADMIN_PWD
+  ADMIN_PASSWORD: process.env.BOT_ADMIN_PWD || process.env.ADMIN_PASSWORD || '',
   
   // ==================== LOGGING ====================
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
@@ -29,7 +30,8 @@ const config = {
 };
 
 // Проверка обязательных переменных
-const required = ['BOT_TOKEN', 'OPENAI_API_KEY', 'FIREBASE_PROJECT_ID', 'ADMIN_PASSWORD'];
+// BOT_ADMIN_PWD - альтернативное имя т.к. Railway блокирует ADMIN_PASSWORD
+const required = ['BOT_TOKEN', 'OPENAI_API_KEY', 'FIREBASE_PROJECT_ID'];
 const missing = required.filter(key => !config[key]);
 
 if (missing.length > 0) {
