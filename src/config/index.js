@@ -37,4 +37,13 @@ if (missing.length > 0) {
   console.error('Проверьте .env файл');
 }
 
+// Debug: показать какие переменные загружены (без значений)
+console.log('🔧 ENV статус:', {
+  BOT_TOKEN: !!config.BOT_TOKEN,
+  OPENAI_API_KEY: !!config.OPENAI_API_KEY,
+  FIREBASE_PROJECT_ID: !!config.FIREBASE_PROJECT_ID,
+  ADMIN_PASSWORD: !!config.ADMIN_PASSWORD,
+  ADMIN_PASSWORD_LENGTH: config.ADMIN_PASSWORD?.length || 0,
+});
+
 module.exports = config;
