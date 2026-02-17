@@ -21,27 +21,35 @@ function register(bot) {
  * /admin_login [пароль] - Вход в админ-панель
  */
 async function handleAdminLogin(ctx) {
-  const userId = ctx.from.id;
-  const password = ctx.message.text.split(' ').slice(1).join(' ').trim();
+  try {
+    const userId = ctx.from.id;
+    logger.info(`🔐 Попытка входа админа от ${userId}`);
 
-  if (!password) {
-    await ctx.reply('🔐 Использование: /admin_login [пароль]');
-    return;
+    const password = ctx.message.text.split(' ').slice(1).join(' ').trim();
+    logger.info(`🔐 Введённый пароль: "${password}", ожидаемый: "${config.ADMIN_PASSWORD}"`);
+
+    if (!password) {
+      await ctx.reply('🔐 Использование: /admin_login [пароль]');
+      return;
+    }
+
+    if (password !== config.ADMIN_PASSWORD) {
+      logger.warn(`❌ НЕУДАЧНАЯ попытка входа администратора от ${userId}`);
+      await ctx.reply('❌ Неправильный пароль!', getMainMenuKeyboard());
+      return;
+    }
+
+    // Установить флаг админа в session
+    ctx.session = ctx.session || {};
+    ctx.session.isAdmin = true;
+    ctx.session.adminLoginTime = new Date();
+
+    logger.info(`✅ Администратор ${userId} успешно вошел`);
+    await ctx.reply('✅ Вы вошли как администратор!', getAdminKeyboard());
+  } catch (error) {
+    logger.error(`❌ Ошибка в handleAdminLogin:`, error);
+    await ctx.reply('❌ Произошла ошибка при входе');
   }
-
-  if (password !== config.ADMIN_PASSWORD) {
-    logger.warn(`❌ НЕУДАЧНАЯ попытка входа администратора от ${userId}`);
-    await ctx.reply('❌ Неправильный пароль!', getMainMenuKeyboard());
-    return;
-  }
-
-  // Установить флаг админа в session
-  ctx.session = ctx.session || {};
-  ctx.session.isAdmin = true;
-  ctx.session.adminLoginTime = new Date();
-
-  logger.info(`✅ Администратор ${userId} успешно вошел`);
-  await ctx.reply('✅ Вы вошли как администратор!', getAdminKeyboard());
 }
 
 /**
