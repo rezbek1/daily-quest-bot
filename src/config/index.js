@@ -46,11 +46,9 @@ console.log('🔧 ENV статус:', {
   ADMIN_PASSWORD_LENGTH: config.ADMIN_PASSWORD?.length || 0,
 });
 
-// Railway debug: показать все переменные, содержащие ADMIN или PASSWORD
-const adminVars = Object.keys(process.env).filter(key =>
-  key.includes('ADMIN') || key.includes('PASSWORD')
-);
-console.log('🔍 Railway DEBUG - переменные с ADMIN/PASSWORD:', adminVars);
-console.log('🔍 process.env.ADMIN_PASSWORD напрямую:', process.env.ADMIN_PASSWORD ? `[SET, length=${process.env.ADMIN_PASSWORD.length}]` : '[NOT SET]');
+// Railway debug: показать ВСЕ переменные окружения (только ключи!)
+const allEnvKeys = Object.keys(process.env).sort();
+console.log('🔍 Railway DEBUG - ВСЕ переменные окружения:');
+console.log(allEnvKeys.join(', '));
 
 module.exports = config;
