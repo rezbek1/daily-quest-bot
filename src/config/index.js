@@ -18,8 +18,9 @@ const config = {
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',
   
   // ==================== ADMIN ====================
-  // Railway блокирует ADMIN_PASSWORD, используем BOT_ADMIN_PWD
-  ADMIN_PASSWORD: process.env.BOT_ADMIN_PWD || process.env.ADMIN_PASSWORD || '',
+  // ВРЕМЕННО: Railway не передаёт env переменные, хардкод пароля
+  // TODO: Исправить когда Railway заработает
+  ADMIN_PASSWORD: process.env.BOT_ADMIN_PWD || process.env.ADMIN_PASSWORD || 'MySecret123',
   
   // ==================== LOGGING ====================
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
@@ -48,9 +49,5 @@ console.log('🔧 ENV статус:', {
   ADMIN_PASSWORD_LENGTH: config.ADMIN_PASSWORD?.length || 0,
 });
 
-// Railway debug: показать ВСЕ переменные окружения (только ключи!)
-const allEnvKeys = Object.keys(process.env).sort();
-console.log('🔍 Railway DEBUG - ВСЕ переменные окружения:');
-console.log(allEnvKeys.join(', '));
 
 module.exports = config;
