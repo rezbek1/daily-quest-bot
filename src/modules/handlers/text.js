@@ -93,13 +93,16 @@ ${quest.story}
     }
   }
 
-  // Обычная обработка неправильных команд
-  if (!text.startsWith('/')) {
-    await ctx.reply(
-      '❌ Команда не найдена.\n\nИспользуй кнопки или /help',
-      getMainMenuKeyboard()
-    );
+  // Если это команда - передать дальше в цепочку обработчиков
+  if (text.startsWith('/')) {
+    return next();
   }
+
+  // Обычная обработка неправильных сообщений
+  await ctx.reply(
+    '❌ Используй кнопки меню или /help',
+    getMainMenuKeyboard()
+  );
 }
 
 module.exports = { register };
