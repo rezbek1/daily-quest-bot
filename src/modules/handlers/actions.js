@@ -41,6 +41,9 @@ function register(bot) {
   
   // Часовые пояса
   bot.action('select_timezone', handleSelectTimezone);
+
+  // Режим Шабата
+  bot.action('toggle_shabbat', handleToggleShabbat);
 }
 
 /**
@@ -141,10 +144,19 @@ async function handleMenuStats(ctx) {
  * ⚙️ Настройки
  */
 async function handleMenuSettings(ctx) {
+  const userId = ctx.from.id;
+  const user = await getUser(userId);
+
+  const shabbatEnabled = user?.shabbatMode || user?.settings?.shabbatMode || false;
+  const shabbatStatus = shabbatEnabled ? '✅ ВКЛ' : '❌ ВЫКЛ';
+
   const settingsMessage = `⚙️ НАСТРОЙКИ УРОВНЯ БОЛИ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Выбери уровень сарказма и время напоминаний:`;
+Выбери уровень сарказма и время напоминаний:
+
+🕯️ Режим Шабата: ${shabbatStatus}
+(Без уведомлений в Шабат)`;
 
   const { Markup } = require('telegraf');
   const keyboard = Markup.inlineKeyboard([
@@ -164,6 +176,7 @@ async function handleMenuSettings(ctx) {
       Markup.button.callback('23:00', 'set_time_23'),
     ],
     [Markup.button.callback('🌍 Часовые пояса', 'select_timezone')],
+    [Markup.button.callback(`🕯️ Шабат: ${shabbatStatus}`, 'toggle_shabbat')],
     ...getMainMenuKeyboard().reply_markup.inline_keyboard,
   ]);
 
@@ -350,6 +363,60 @@ async function handleSelectTimezone(ctx) {
   const keyboard = getTzKeyboard(TIMEZONES);
   await ctx.reply('🌍 Выбери свой часовой пояс:', keyboard);
   await ctx.answerCbQuery();
+}
+
+/**
+ * 🕯️ Переключить режим Шабата
+ */
+async function handleToggleShabbat(ctx) {
+  const userId = ctx.from.id;
+  try {
+    const user = await getUser(userId);
+    const currentState = user?.shabbatMode || user?.settings?.shabbatMode || false;
+    const newState = !currentState;
+
+    await db.updateUser(userId, { shabbatMode: newState });
+
+    const statusText = newState ? '✅ включён' : '❌ выключен';
+    await ctx.answerCbQuery(`🕯️ Режим Шабата ${statusText}`, true);
+
+    // Показываем обновлённое меню настроек
+    const shabbatStatus = newState ? '✅ ВКЛ' : '❌ ВЫКЛ';
+    const settingsMessage = `⚙️ НАСТРОЙКИ УРОВНЯ БОЛИ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Выбери уровень сарказма и время напоминаний:
+
+🕯️ Режим Шабата: ${shabbatStatus}
+(Без уведомлений в Шабат)`;
+
+    const { Markup } = require('telegraf');
+    const keyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('😅 Лёгкий', 'set_pain_light'),
+        Markup.button.callback('💀 Чёрный', 'set_pain_black'),
+        Markup.button.callback('🔥 Венчурное', 'set_pain_venture'),
+      ],
+      [
+        Markup.button.callback('08:00', 'set_time_08'),
+        Markup.button.callback('12:00', 'set_time_12'),
+        Markup.button.callback('17:00', 'set_time_17'),
+      ],
+      [
+        Markup.button.callback('19:00', 'set_time_19'),
+        Markup.button.callback('21:00', 'set_time_21'),
+        Markup.button.callback('23:00', 'set_time_23'),
+      ],
+      [Markup.button.callback('🌍 Часовые пояса', 'select_timezone')],
+      [Markup.button.callback(`🕯️ Шабат: ${shabbatStatus}`, 'toggle_shabbat')],
+      ...getMainMenuKeyboard().reply_markup.inline_keyboard,
+    ]);
+
+    await ctx.reply(settingsMessage, keyboard);
+  } catch (error) {
+    logger.error('Ошибка переключения Шабата:', error);
+    await ctx.answerCbQuery('❌ Ошибка', true);
+  }
 }
 
 module.exports = { register };
