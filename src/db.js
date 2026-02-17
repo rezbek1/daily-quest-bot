@@ -178,6 +178,65 @@ async function addFeedback(userId, text) {
   }
 }
 
+/**
+ * ADMINS
+ */
+
+async function getAdmins() {
+  try {
+    const snapshot = await db.collection('admins').get();
+    const admins = [];
+    snapshot.forEach((doc) => {
+      admins.push({ id: doc.id, ...doc.data() });
+    });
+    return admins;
+  } catch (error) {
+    logger.error('❌ Ошибка получения списка админов:', error);
+    return [];
+  }
+}
+
+async function isAdmin(userId) {
+  try {
+    // Проверка супер-админа
+    if (userId === config.SUPER_ADMIN_ID || userId.toString() === config.SUPER_ADMIN_ID.toString()) {
+      return true;
+    }
+    // Проверка в базе данных
+    const adminDoc = await db.collection('admins').doc(userId.toString()).get();
+    return adminDoc.exists;
+  } catch (error) {
+    logger.error(`❌ Ошибка проверки админа ${userId}:`, error);
+    return false;
+  }
+}
+
+async function addAdmin(userId, addedBy) {
+  try {
+    await db.collection('admins').doc(userId.toString()).set({
+      userId: userId.toString(),
+      addedBy: addedBy.toString(),
+      addedAt: new Date(),
+    });
+    logger.info(`✅ Админ ${userId} добавлен пользователем ${addedBy}`);
+    return true;
+  } catch (error) {
+    logger.error(`❌ Ошибка добавления админа ${userId}:`, error);
+    return false;
+  }
+}
+
+async function removeAdmin(userId) {
+  try {
+    await db.collection('admins').doc(userId.toString()).delete();
+    logger.info(`✅ Админ ${userId} удалён`);
+    return true;
+  } catch (error) {
+    logger.error(`❌ Ошибка удаления админа ${userId}:`, error);
+    return false;
+  }
+}
+
 // ==================== ЭКСПОРТ ====================
 
 // Добавляем функции к db объекту
@@ -190,24 +249,34 @@ db.updateQuest = updateQuest;
 db.deleteQuest = deleteQuest;
 db.addAnalytics = addAnalytics;
 db.addFeedback = addFeedback;
+db.getAdmins = getAdmins;
+db.isAdmin = isAdmin;
+db.addAdmin = addAdmin;
+db.removeAdmin = removeAdmin;
 
 module.exports = {
   db,
-  
+
   // Users
   getUser,
   createOrUpdateUser,
   updateUser,
-  
+
   // Quests
   createQuest,
   getActiveQuests,
   updateQuest,
   deleteQuest,
-  
+
   // Analytics
   addAnalytics,
-  
+
   // Feedback
   addFeedback,
+
+  // Admins
+  getAdmins,
+  isAdmin,
+  addAdmin,
+  removeAdmin,
 };

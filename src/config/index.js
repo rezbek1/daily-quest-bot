@@ -18,9 +18,8 @@ const config = {
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',
   
   // ==================== ADMIN ====================
-  // ВРЕМЕННО: Railway не передаёт env переменные, хардкод пароля
-  // TODO: Исправить когда Railway заработает
-  ADMIN_PASSWORD: process.env.BOT_ADMIN_PWD || process.env.ADMIN_PASSWORD || 'MySecret123',
+  // Супер-админ по Telegram ID (всегда имеет доступ)
+  SUPER_ADMIN_ID: 349533429,
   
   // ==================== LOGGING ====================
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
@@ -31,23 +30,19 @@ const config = {
 };
 
 // Проверка обязательных переменных
-// BOT_ADMIN_PWD - альтернативное имя т.к. Railway блокирует ADMIN_PASSWORD
 const required = ['BOT_TOKEN', 'OPENAI_API_KEY', 'FIREBASE_PROJECT_ID'];
 const missing = required.filter(key => !config[key]);
 
 if (missing.length > 0) {
-  console.error('❌ Отсутствуют переменные окружения:', missing);
-  console.error('Проверьте .env файл');
+  console.error('Отсутствуют переменные окружения:', missing);
 }
 
-// Debug: показать какие переменные загружены (без значений)
-console.log('🔧 ENV статус:', {
+// Debug: показать статус конфигурации
+console.log('ENV статус:', {
   BOT_TOKEN: !!config.BOT_TOKEN,
   OPENAI_API_KEY: !!config.OPENAI_API_KEY,
   FIREBASE_PROJECT_ID: !!config.FIREBASE_PROJECT_ID,
-  ADMIN_PASSWORD: !!config.ADMIN_PASSWORD,
-  ADMIN_PASSWORD_LENGTH: config.ADMIN_PASSWORD?.length || 0,
+  SUPER_ADMIN_ID: config.SUPER_ADMIN_ID,
 });
-
 
 module.exports = config;
