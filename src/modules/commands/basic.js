@@ -53,7 +53,11 @@ async function handleHelp(ctx) {
 
 👤 ПРОФИЛЬ И ПРОГРЕСС:
 /profile — профиль
-/stats — статистика`;
+/stats — статистика
+/leaderboard — лидерборд
+
+🕯️ ШАБАТ:
+/shabbat_info — время Шабата`;
   
   await ctx.reply(helpMessage, getMainMenuKeyboard());
 }
