@@ -64,15 +64,25 @@ async function handleText(ctx, next) {
 
 ${quest.story}
 
-⭐ +${quest.xp} XP за выживание`;
-    
+⭐ +${quest.xp} XP за выживание
+
+⏰ Выбери дедлайн:`;
+
     const { Markup } = require('telegraf');
     const questKeyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('Сегодня', `deadline_today_${quest.id}`),
+        Markup.button.callback('Завтра', `deadline_tomorrow_${quest.id}`),
+      ],
+      [
+        Markup.button.callback('Через 3 дня', `deadline_3days_${quest.id}`),
+        Markup.button.callback('Через неделю', `deadline_week_${quest.id}`),
+      ],
+      [Markup.button.callback('Без дедлайна', `deadline_none_${quest.id}`)],
       [Markup.button.callback(`✅ Выполнено! #${quest.questNumber}`, `done_${quest.id}`)],
       [Markup.button.callback(`🗑️ Удалить #${quest.questNumber}`, `delete_${quest.id}`)],
-      ...getMainMenuKeyboard().reply_markup.inline_keyboard,
     ]);
-    
+
     await ctx.reply(questMessage, questKeyboard);
     
     try {
