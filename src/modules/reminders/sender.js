@@ -185,13 +185,18 @@ async function checkDeadlines() {
     const now = new Date();
     const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
 
-    // Получить все активные квесты с дедлайнами
+    // Получить все активные квесты (фильтруем дедлайны в коде)
     const questsSnapshot = await db.collection('quests')
       .where('completed', '==', false)
-      .where('deadline', '!=', null)
       .get();
 
-    for (const questDoc of questsSnapshot.docs) {
+    // Фильтруем только квесты с дедлайнами
+    const questsWithDeadlines = questsSnapshot.docs.filter(doc => {
+      const data = doc.data();
+      return data.deadline != null;
+    });
+
+    for (const questDoc of questsWithDeadlines) {
       const quest = questDoc.data();
       const deadline = quest.deadline?.toDate ? quest.deadline.toDate() : new Date(quest.deadline);
 
