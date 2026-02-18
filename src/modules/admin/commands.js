@@ -57,7 +57,7 @@ async function handleAdmin(ctx) {
     const adminType = ctx.session.isSuperAdmin ? 'Супер-админ' : 'Админ';
     logger.info(`${adminType} ${userId} успешно вошёл`);
 
-    await ctx.reply(`${adminType}: добро пожаловать!`, getAdminKeyboard());
+    await ctx.reply(`${adminType}: добро пожаловать!`, getAdminKeyboard(ctx.session.isSuperAdmin));
   } catch (error) {
     logger.error(`Ошибка в handleAdmin:`, error);
     await ctx.reply('Произошла ошибка');
