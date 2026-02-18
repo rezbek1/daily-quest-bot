@@ -82,6 +82,43 @@ ${quest.story}
     return;
   }
 
+  // Проверить режимы для админов (добавление/удаление админа)
+  if (ctx.session.waitingForAdminAdd) {
+    ctx.session.waitingForAdminAdd = false;
+    const newAdminId = text.trim();
+
+    if (!newAdminId || isNaN(newAdminId)) {
+      await ctx.reply('Неверный ID. Введи числовой Telegram ID.', getMainMenuKeyboard());
+      return;
+    }
+
+    const success = await db.addAdmin(newAdminId, userId);
+    if (success) {
+      await ctx.reply(`Админ ${newAdminId} добавлен`);
+    } else {
+      await ctx.reply('Ошибка добавления админа');
+    }
+    return;
+  }
+
+  if (ctx.session.waitingForAdminRemove) {
+    ctx.session.waitingForAdminRemove = false;
+    const adminIdToRemove = text.trim();
+
+    if (!adminIdToRemove || isNaN(adminIdToRemove)) {
+      await ctx.reply('Неверный ID. Введи числовой Telegram ID.', getMainMenuKeyboard());
+      return;
+    }
+
+    const success = await db.removeAdmin(adminIdToRemove);
+    if (success) {
+      await ctx.reply(`Админ ${adminIdToRemove} удалён`);
+    } else {
+      await ctx.reply('Ошибка удаления админа');
+    }
+    return;
+  }
+
   // Проверить режимы broadcast для админов
   const userDoc = await db.getUser(userId);
   if (userDoc) {

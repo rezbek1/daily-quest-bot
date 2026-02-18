@@ -9,6 +9,14 @@ const { getAdminKeyboard } = require('./keyboards');
 const config = require('../../config');
 
 /**
+ * Проверка супер-админа
+ */
+function isSuperAdmin(userId) {
+  return userId === config.SUPER_ADMIN_ID ||
+         userId.toString() === config.SUPER_ADMIN_ID.toString();
+}
+
+/**
  * Регистрация обработчиков администратора
  */
 function register(bot) {
@@ -16,16 +24,20 @@ function register(bot) {
   bot.action('admin_broadcast_text', handleBroadcastText);
   bot.action('admin_broadcast_photo', handleBroadcastPhoto);
   bot.action('admin_broadcast_video', handleBroadcastVideo);
-  
+
   // Статистика
   bot.action('admin_stats', handleStats);
-  
+
   // Список админов
   bot.action('admin_list_show', handleListAdmins);
-  
+
+  // Управление админами (только супер-админ)
+  bot.action('admin_add_start', handleAdminAddStart);
+  bot.action('admin_remove_start', handleAdminRemoveStart);
+
   // Меню
   bot.action('admin_menu', handleAdminMenuRefresh);
-  
+
   // Выход
   bot.action('admin_logout_confirm', handleLogoutConfirm);
   bot.action('admin_logout_yes', handleLogoutYes);
@@ -97,14 +109,66 @@ async function handleStats(ctx) {
  * 👥 Список администраторов
  */
 async function handleListAdmins(ctx) {
-  const message = `👥 АДМИНИСТРАТОРЫ
+  try {
+    const admins = await db.getAdmins();
+    const superAdmin = isSuperAdmin(ctx.from.id);
+
+    let message = `👥 АДМИНИСТРАТОРЫ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Только авторизованные пользователи вижу в этой сессии.
+👑 Супер-админ: ${config.SUPER_ADMIN_ID}
+`;
 
-Всего админов в боте: Неограниченно (по паролю)`;
+    if (admins.length > 0) {
+      message += '\n📋 Админы из базы:\n';
+      admins.forEach((admin, i) => {
+        message += `${i + 1}. ${admin.userId}\n`;
+      });
+    } else {
+      message += '\nДополнительных админов нет';
+    }
 
-  await ctx.reply(message, getAdminKeyboard());
+    await ctx.reply(message, getAdminKeyboard(superAdmin));
+    await ctx.answerCbQuery();
+  } catch (error) {
+    logger.error('Ошибка получения списка админов:', error);
+    await ctx.answerCbQuery('Ошибка', true);
+  }
+}
+
+/**
+ * ➕ Начать добавление админа
+ */
+async function handleAdminAddStart(ctx) {
+  const userId = ctx.from.id;
+
+  if (!isSuperAdmin(userId)) {
+    await ctx.answerCbQuery('Только супер-админ может добавлять админов', true);
+    return;
+  }
+
+  ctx.session = ctx.session || {};
+  ctx.session.waitingForAdminAdd = true;
+
+  await ctx.reply('➕ Введи Telegram ID нового админа:\n\nПример: 123456789');
+  await ctx.answerCbQuery();
+}
+
+/**
+ * ➖ Начать удаление админа
+ */
+async function handleAdminRemoveStart(ctx) {
+  const userId = ctx.from.id;
+
+  if (!isSuperAdmin(userId)) {
+    await ctx.answerCbQuery('Только супер-админ может удалять админов', true);
+    return;
+  }
+
+  ctx.session = ctx.session || {};
+  ctx.session.waitingForAdminRemove = true;
+
+  await ctx.reply('➖ Введи Telegram ID админа для удаления:\n\nПример: 123456789');
   await ctx.answerCbQuery();
 }
 
@@ -112,7 +176,8 @@ async function handleListAdmins(ctx) {
  * 🔄 Обновить меню админа
  */
 async function handleAdminMenuRefresh(ctx) {
-  await ctx.editMessageText('🔐 АДМИН-ПАНЕЛЬ', getAdminKeyboard());
+  const superAdmin = isSuperAdmin(ctx.from.id);
+  await ctx.editMessageText('АДМИН-ПАНЕЛЬ', getAdminKeyboard(superAdmin));
   await ctx.answerCbQuery();
 }
 

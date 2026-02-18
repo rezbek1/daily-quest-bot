@@ -8,8 +8,8 @@ const { Markup } = require('telegraf');
 /**
  * Главное меню администратора
  */
-function getAdminKeyboard() {
-  return Markup.inlineKeyboard([
+function getAdminKeyboard(isSuperAdmin = false) {
+  const buttons = [
     [
       Markup.button.callback('📣 Broadcast Text', 'admin_broadcast_text'),
       Markup.button.callback('📸 Broadcast Photo', 'admin_broadcast_photo'),
@@ -20,12 +20,22 @@ function getAdminKeyboard() {
     ],
     [
       Markup.button.callback('👥 Список админов', 'admin_list_show'),
-      Markup.button.callback('🔄 Обновить', 'admin_menu'),
     ],
-    [
-      Markup.button.callback('🚪 Выход из админки', 'admin_logout_confirm'),
-    ],
+  ];
+
+  // Только супер-админ видит кнопки управления админами
+  if (isSuperAdmin) {
+    buttons.push([
+      Markup.button.callback('➕ Добавить админа', 'admin_add_start'),
+      Markup.button.callback('➖ Удалить админа', 'admin_remove_start'),
+    ]);
+  }
+
+  buttons.push([
+    Markup.button.callback('🚪 Выход из админки', 'admin_logout_confirm'),
   ]);
+
+  return Markup.inlineKeyboard(buttons);
 }
 
 /**
