@@ -26,10 +26,11 @@ function register(botInstance) {
 function startScheduler() {
   logger.info('✅✅✅ ЗАПУСКАЮ ПЛАНИРОВЩИК НАПОМИНАНИЙ ✅✅✅');
   logger.info('⏰ Проверка напоминаний: каждую минуту для каждого часового пояса');
-  
+
   // Запускать каждую минуту
   job = cron.schedule('* * * * *', async () => {
     await sendReminders();
+    await checkDeadlines();
   });
 }
 
@@ -176,9 +177,89 @@ ${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
   }
 }
 
+/**
+ * Проверить дедлайны квестов
+ */
+async function checkDeadlines() {
+  try {
+    const now = new Date();
+    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+
+    // Получить все активные квесты с дедлайнами
+    const questsSnapshot = await db.collection('quests')
+      .where('completed', '==', false)
+      .where('deadline', '!=', null)
+      .get();
+
+    for (const questDoc of questsSnapshot.docs) {
+      const quest = questDoc.data();
+      const deadline = quest.deadline?.toDate ? quest.deadline.toDate() : new Date(quest.deadline);
+
+      // Проверка: за 2 часа до дедлайна (напоминание)
+      if (!quest.deadlineNotified && deadline <= twoHoursFromNow && deadline > now) {
+        try {
+          const timeLeft = Math.round((deadline - now) / (60 * 1000));
+          const hoursLeft = Math.floor(timeLeft / 60);
+          const minutesLeft = timeLeft % 60;
+
+          const reminderMsg = `⏰ НАПОМИНАНИЕ О ДЕДЛАЙНЕ!
+
+Квест #${quest.questNumber}: "${quest.title}"
+
+До дедлайна осталось: ${hoursLeft > 0 ? `${hoursLeft}ч ` : ''}${minutesLeft}мин
+
+Успей выполнить! /quests`;
+
+          if (bot) {
+            await bot.telegram.sendMessage(quest.userId, reminderMsg);
+          }
+
+          // Отметить что уведомили
+          await questDoc.ref.update({ deadlineNotified: true });
+          logger.info(`⏰ Напоминание о дедлайне отправлено: квест #${quest.questNumber}`);
+        } catch (error) {
+          logger.warn(`⚠️ Ошибка отправки напоминания о дедлайне: ${error.message}`);
+        }
+      }
+
+      // Проверка: дедлайн прошёл (просрочено)
+      if (!quest.overdue && deadline < now) {
+        try {
+          const overdueMsg = `❌ ДЕДЛАЙН ПРОПУЩЕН!
+
+Квест #${quest.questNumber}: "${quest.title}"
+
+Дедлайн был: ${deadline.toLocaleString('ru-RU')}
+
+😔 Streak сброшен. Квест всё ещё активен - можешь выполнить!
+
+/quests`;
+
+          if (bot) {
+            await bot.telegram.sendMessage(quest.userId, overdueMsg);
+          }
+
+          // Отметить как просроченный
+          await questDoc.ref.update({ overdue: true });
+
+          // Сбросить streak пользователя
+          await db.updateUser(quest.userId, { streak: 0 });
+
+          logger.info(`❌ Квест #${quest.questNumber} просрочен, streak сброшен`);
+        } catch (error) {
+          logger.warn(`⚠️ Ошибка обработки просроченного квеста: ${error.message}`);
+        }
+      }
+    }
+  } catch (error) {
+    logger.error('❌ Ошибка проверки дедлайнов:', error);
+  }
+}
+
 module.exports = {
   register,
   startScheduler,
   stopScheduler,
   sendReminders,
+  checkDeadlines,
 };
