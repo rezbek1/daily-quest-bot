@@ -88,16 +88,19 @@ async function handleStats(ctx) {
       }
     });
 
-    const statsMessage = `📊 СТАТИСТИКА БОТА
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const activity = questsSnapshot.size > 0
+      ? Math.round((totalQuestsCompleted / questsSnapshot.size) * 100)
+      : 0;
 
-👥 Пользователей: ${usersSnapshot.size}
-📦 Всего квестов: ${questsSnapshot.size}
-✅ Выполнено квестов: ${totalQuestsCompleted}
+    const statsMessage = `📊 <b>СТАТИСТИКА БОТА</b>
 
-📈 Активность: ${Math.round((totalQuestsCompleted / questsSnapshot.size) * 100)}%`;
+👥 Пользователей: <b>${usersSnapshot.size}</b>
+📦 Всего квестов: <b>${questsSnapshot.size}</b>
+✅ Выполнено квестов: <b>${totalQuestsCompleted}</b>
 
-    await ctx.reply(statsMessage, getAdminKeyboard());
+📈 Активность: <b>${activity}%</b>`;
+
+    await ctx.reply(statsMessage, { parse_mode: 'HTML', ...getAdminKeyboard() });
     await ctx.answerCbQuery();
   } catch (error) {
     logger.error('❌ Ошибка при получении статистики:', error);

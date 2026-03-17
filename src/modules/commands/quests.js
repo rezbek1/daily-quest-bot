@@ -6,6 +6,7 @@
 const logger = require('../../logger');
 const { createQuest, getActiveQuests, getTodayQuests } = require('../quests');
 const { getMainMenuKeyboard } = require('../keyboard');
+const { esc } = require('../../utils/format');
 
 /**
  * Регистрация команд квестов
@@ -37,14 +38,13 @@ async function handleAddTask(ctx) {
       return;
     }
 
-    const questMessage = `✨ НОВЫЙ КВЕСТ #${quest.questNumber}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const questMessage = `✨ <b>НОВЫЙ КВЕСТ #${quest.questNumber}</b>
 
-📜 ${quest.title}
+📜 <b>${esc(quest.title)}</b>
 
-${quest.story}
+${esc(quest.story)}
 
-⭐ +${quest.xp} XP за выживание`;
+⭐ <b>+${quest.xp} XP</b> за выживание`;
     
     const { Markup } = require('telegraf');
     const questKeyboard = Markup.inlineKeyboard([
@@ -53,7 +53,7 @@ ${quest.story}
       ...getMainMenuKeyboard().reply_markup.inline_keyboard,
     ]);
     
-    await ctx.reply(questMessage, questKeyboard);
+    await ctx.reply(questMessage, { parse_mode: 'HTML', ...questKeyboard });
     
     try {
       await ctx.deleteMessage(waitMsg.message_id);
@@ -79,13 +79,15 @@ async function handleQuests(ctx) {
       return;
     }
 
-    let message = `📋 АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
-    message += `${'━'.repeat(40)}\n\n`;
+    let message = `📋 <b>АКТИВНЫЕ КВЕСТЫ (${quests.length})</b>\n\n`;
 
     for (const quest of quests) {
       const difficulty = '⭐'.repeat(Math.min(Math.floor(quest.xp / 20), 5));
-      message += `#${quest.questNumber} 💀 ${quest.title}\n`;
-      message += `${difficulty} +${quest.xp} XP\n\n`;
+      const deadlineStr = quest.deadline
+        ? `\n📅 <i>до ${new Date(quest.deadline?.toDate ? quest.deadline.toDate() : quest.deadline).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</i>`
+        : '';
+      message += `#${quest.questNumber} 💀 <b>${esc(quest.title)}</b>${deadlineStr}\n`;
+      message += `${difficulty || '⭐'} <b>+${quest.xp} XP</b>\n\n`;
     }
 
     const { Markup } = require('telegraf');
@@ -99,7 +101,7 @@ async function handleQuests(ctx) {
       ...getMainMenuKeyboard().reply_markup.inline_keyboard,
     ]);
 
-    await ctx.reply(message, keyboard);
+    await ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
   } catch (error) {
     logger.error('❌ Ошибка /quests:', error);
     await ctx.reply('❌ Ошибка загрузки квестов', getMainMenuKeyboard());

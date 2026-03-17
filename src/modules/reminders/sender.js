@@ -9,6 +9,7 @@ const { db } = require('../../db');
 const { isShabbat } = require('../shabbat');
 const { getActiveQuests } = require('../quests');
 const moment = require('moment-timezone');
+const { esc } = require('../../utils/format');
 
 let job = null;
 let bot = null;
@@ -107,19 +108,19 @@ async function sendReminders() {
       if (activeQuests && activeQuests.length > 0) {
         // Есть активные квесты - отправить напоминание
         try {
-          const reminderMessage = `🔔 НАПОМИНАНИЕ О КВЕСТАХ
+          const questList = activeQuests.slice(0, 3).map((q) => `• ${esc(q.title)}`).join('\n');
+          const more = activeQuests.length > 3 ? `\n<i>... и ещё ${activeQuests.length - 3}</i>` : '';
+          const reminderMessage = `🔔 <b>Время страдать, ${esc(user.name)}</b>
 
-⏰ Время: ${userCurrentTime} (${timezone})
-📋 Активных квестов: ${activeQuests.length}
+⏰ ${userCurrentTime} — ты не можешь это игнорировать
 
-Вот что ждёт:
-${activeQuests.slice(0, 3).map((q, i) => `${i + 1}. ${q.title}`).join('\n')}
-${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
+📋 <b>${activeQuests.length} ${activeQuests.length === 1 ? 'квест ждёт' : 'квеста ждут'} твоей крови:</b>
+${questList}${more}
 
-➡️ Давай, выполнять! /quests`;
-          
+💀 /quests — туда. Прямо сейчас.`;
+
           if (bot) {
-            await bot.telegram.sendMessage(userId, reminderMessage);
+            await bot.telegram.sendMessage(userId, reminderMessage, { parse_mode: 'HTML' });
           }
           
           // Сохраняем дату отправки
@@ -137,16 +138,14 @@ ${activeQuests.length > 3 ? `\n... и ещё ${activeQuests.length - 3}` : ''}
         logger.info(`⏭️ ${user.name}: нет активных квестов, но время совпало. Отправляю уведомление...`);
         
         try {
-          const noQuestsMessage = `🔔 ВРЕМЯ НАПОМИНАНИЯ
+          const noQuestsMessage = `🔔 <b>Время ${userCurrentTime}</b>, ${esc(user.name)}
 
-⏰ ${userCurrentTime} (${timezone})
+😴 <i>Квестов нет. Ты либо всё сделал, либо всё забросил.</i>
 
-😴 У тебя нет активных квестов!
+💡 Создай новый: /quests`;
 
-💡 Совет: создай новый квест или возьмись за что-то из архива. /quests`;
-          
           if (bot) {
-            await bot.telegram.sendMessage(userId, noQuestsMessage);
+            await bot.telegram.sendMessage(userId, noQuestsMessage, { parse_mode: 'HTML' });
           }
           
           // Сохраняем дату отправки
@@ -207,16 +206,17 @@ async function checkDeadlines() {
           const hoursLeft = Math.floor(timeLeft / 60);
           const minutesLeft = timeLeft % 60;
 
-          const reminderMsg = `⏰ НАПОМИНАНИЕ О ДЕДЛАЙНЕ!
+          const timeStr = hoursLeft > 0 ? `${hoursLeft}ч ${minutesLeft}мин` : `${minutesLeft} мин`;
+          const reminderMsg = `⏰ <b>Дедлайн горит!</b>
 
-Квест #${quest.questNumber}: "${quest.title}"
+Квест #${quest.questNumber}: <i>${esc(quest.title)}</i>
 
-До дедлайна осталось: ${hoursLeft > 0 ? `${hoursLeft}ч ` : ''}${minutesLeft}мин
+Осталось: <b>${timeStr}</b> — потом будет поздно
 
-Успей выполнить! /quests`;
+💀 /quests`;
 
           if (bot) {
-            await bot.telegram.sendMessage(quest.userId, reminderMsg);
+            await bot.telegram.sendMessage(quest.userId, reminderMsg, { parse_mode: 'HTML' });
           }
 
           // Отметить что уведомили
@@ -230,18 +230,18 @@ async function checkDeadlines() {
       // Проверка: дедлайн прошёл (просрочено)
       if (!quest.overdue && deadline < now) {
         try {
-          const overdueMsg = `❌ ДЕДЛАЙН ПРОПУЩЕН!
+          const overdueMsg = `💀 <b>Дедлайн пропущен</b>
 
-Квест #${quest.questNumber}: "${quest.title}"
+Квест #${quest.questNumber}: <i>${esc(quest.title)}</i>
 
-Дедлайн был: ${deadline.toLocaleString('ru-RU')}
+<s>Дедлайн: ${deadline.toLocaleString('ru-RU')}</s>
 
-😔 Streak сброшен. Квест всё ещё активен - можешь выполнить!
+😔 Streak сброшен. Но квест ещё живой — можешь добить.
 
 /quests`;
 
           if (bot) {
-            await bot.telegram.sendMessage(quest.userId, overdueMsg);
+            await bot.telegram.sendMessage(quest.userId, overdueMsg, { parse_mode: 'HTML' });
           }
 
           // Отметить как просроченный

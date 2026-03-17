@@ -8,6 +8,7 @@ const { getUser } = require('../users');
 const { getActiveQuests } = require('../quests');
 const { getMainMenuKeyboard } = require('../keyboard');
 const { db } = require('../../db');
+const { esc, progressBar, levelTitle } = require('../../utils/format');
 
 /**
  * Регистрация команд профиля
@@ -33,26 +34,24 @@ async function handleProfile(ctx) {
     }
 
     const streakEmoji = user.streak >= 7 ? '🔥' : user.streak >= 3 ? '⚡' : '✨';
+    const xpMax = user.level * 300;
+    const xpBar = progressBar(user.xp % 300, 300);
+    const xpPercent = Math.round((user.xp % 300) / 3);
 
-    const profileMessage = `👤 ПРОФИЛЬ: ${user.name}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const profileMessage = `👤 <b>${esc(user.name)}</b> — Уровень ${user.level} 💀
+<i>${esc(levelTitle(user.level))}</i>
 
-📊 ОСНОВНЫЕ СТАТИСТИКИ
-Уровень: ${user.level} ${'💀'.repeat(Math.min(user.level, 5))}
-Опыт: ${user.xp}/${user.level * 300} XP (${Math.round((user.xp % 300) / 3)}%)
+XP: <code>${xpBar}</code> ${xpPercent}%
+<i>${user.xp % 300} / ${xpMax} XP до следующего уровня</i>
 
-📈 ПРОГРЕСС
-✅ Всего квестов: ${user.totalQuestsCompleted}
-${streakEmoji} Streak: ${user.streak} дней
+✅ Квестов выполнено: <b>${user.totalQuestsCompleted}</b>
+${streakEmoji} Streak: <b>${user.streak} дней</b>
 
-🏆 БЕЙДЖИ: ${user.badges.join(', ') || 'Еще нет'}
+🏆 Бейджи: ${user.badges?.length ? esc(user.badges.join(', ')) : '<i>пока нет</i>'}
 
-⚙️ НАСТРОЙКИ
-🎨 Тема: ${user.theme}
-🔔 Напоминания: ${user.settings?.reminderTime || '19:00'}
-🌍 Язык: ${user.settings?.language || 'ru'}`;
+⚙️ Напоминания: ${user.settings?.reminderTime || '19:00'} · 🌍 ${user.settings?.timezone || 'Europe/Moscow'}`;
 
-    await ctx.reply(profileMessage, getMainMenuKeyboard());
+    await ctx.reply(profileMessage, { parse_mode: 'HTML', ...getMainMenuKeyboard() });
   } catch (error) {
     logger.error('❌ Ошибка /profile:', error);
     await ctx.reply('❌ Ошибка загрузки профиля', getMainMenuKeyboard());
@@ -74,36 +73,33 @@ async function handleStats(ctx) {
       return;
     }
 
-    let statsMessage = `📊 СТАТИСТИКА
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const daysInGame = Math.floor((new Date() - user.createdAt.toDate()) / (1000 * 60 * 60 * 24));
+    const efficiency = user.totalQuestsCompleted > 0
+      ? Math.min(100, Math.round((user.totalQuestsCompleted / (daysInGame || 1)) * 10))
+      : 0;
 
-👤 ${user.name}
-Уровень: ${user.level}
-Всего XP: ${user.xp}
-Квестов выполнено: ${user.totalQuestsCompleted}
+    let statsMessage = `📊 <b>СТАТИСТИКА</b>
 
-🎯 СЕЙЧАС В РАБОТЕ: ${activeQuests.length} квестов`;
+👤 ${esc(user.name)} · Уровень ${user.level}
+Всего XP: <b>${user.xp}</b>
+Выполнено квестов: <b>${user.totalQuestsCompleted}</b>
+В работе: <b>${activeQuests.length}</b>`;
 
     if (activeQuests.length > 0 && activeQuests.length <= 5) {
-      statsMessage += `\n${'─'.repeat(40)}\n`;
+      statsMessage += '\n\n';
       activeQuests.forEach((quest) => {
-        statsMessage += `#${quest.questNumber} ${quest.title}\n`;
+        statsMessage += `  • #${quest.questNumber} <i>${esc(quest.title)}</i>\n`;
       });
     }
 
     statsMessage += `
+📈 Эффективность: <b>${efficiency} квестов/10 дней</b>
+🗓 Дней в игре: <b>${daysInGame}</b>
+⚡ Streak: <b>${user.streak} дней</b>
 
-${'━'.repeat(40)}
+<i>Больше квестов → больше XP → больше уровней → 🖤</i>`;
 
-📈 ЭФФЕКТИВНОСТЬ: ${user.totalQuestsCompleted > 0 ? '95%' : '0%'}
-
-🎯 АКТИВНОСТЬ
-Дней в игре: ${Math.floor((new Date() - user.createdAt.toDate()) / (1000 * 60 * 60 * 24))}
-Streak: ${user.streak} дней
-
-💡 Больше квестов → больше XP → больше уровней → 🖤`;
-
-    await ctx.reply(statsMessage, getMainMenuKeyboard());
+    await ctx.reply(statsMessage, { parse_mode: 'HTML', ...getMainMenuKeyboard() });
   } catch (error) {
     logger.error('❌ Ошибка /stats:', error);
     await ctx.reply('❌ Ошибка загрузки статистики', getMainMenuKeyboard());

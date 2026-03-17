@@ -11,6 +11,7 @@ const { getUser } = require('../users');
 const { getActiveQuests, getTodayQuests } = require('../quests');
 const { getQuoteOfDay } = require('../../utils/quotes');
 const moment = require('moment-timezone');
+const { esc, progressBar, levelTitle } = require('../../utils/format');
 
 /**
  * Регистрация всех action обработчиков
@@ -69,13 +70,15 @@ async function handleMenuQuests(ctx) {
     return;
   }
 
-  let message = `📋 АКТИВНЫЕ КВЕСТЫ (${quests.length})\n`;
-  message += `${'━'.repeat(40)}\n\n`;
+  let message = `📋 <b>АКТИВНЫЕ КВЕСТЫ (${quests.length})</b>\n\n`;
 
   for (const quest of quests) {
     const difficulty = '⭐'.repeat(Math.min(Math.floor(quest.xp / 20), 5));
-    message += `#${quest.questNumber} 💀 ${quest.title}\n`;
-    message += `${difficulty} +${quest.xp} XP\n\n`;
+    const deadlineStr = quest.deadline
+      ? `\n📅 <i>до ${new Date(quest.deadline?.toDate ? quest.deadline.toDate() : quest.deadline).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</i>`
+      : '';
+    message += `#${quest.questNumber} 💀 <b>${esc(quest.title)}</b>${deadlineStr}\n`;
+    message += `${difficulty || '⭐'} <b>+${quest.xp} XP</b>\n\n`;
   }
 
   const buttons = quests.map((quest) => [
@@ -88,7 +91,7 @@ async function handleMenuQuests(ctx) {
     ...getMainMenuKeyboard().reply_markup.inline_keyboard,
   ]);
 
-  await ctx.reply(message, keyboard);
+  await ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
   await ctx.answerCbQuery();
 }
 
@@ -105,15 +108,19 @@ async function handleMenuProfile(ctx) {
   }
 
   const streakEmoji = user.streak >= 7 ? '🔥' : user.streak >= 3 ? '⚡' : '✨';
+  const xpBar = progressBar(user.xp % 300, 300);
+  const xpPercent = Math.round((user.xp % 300) / 3);
 
-  const profileMessage = `👤 ПРОФИЛЬ: ${user.name}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const profileMessage = `👤 <b>${esc(user.name)}</b> — Уровень ${user.level} 💀
+<i>${esc(levelTitle(user.level))}</i>
 
-Уровень: ${user.level} ${'💀'.repeat(Math.min(user.level, 5))}
-Опыт: ${user.xp}/${user.level * 300} XP
-${streakEmoji} Streak: ${user.streak} дней`;
+XP: <code>${xpBar}</code> ${xpPercent}%
+<i>${user.xp % 300} / ${user.level * 300} XP</i>
 
-  await ctx.reply(profileMessage, getMainMenuKeyboard());
+${streakEmoji} Streak: <b>${user.streak} дней</b>
+✅ Выполнено: <b>${user.totalQuestsCompleted}</b>`;
+
+  await ctx.reply(profileMessage, { parse_mode: 'HTML', ...getMainMenuKeyboard() });
   await ctx.answerCbQuery();
 }
 
@@ -130,13 +137,14 @@ async function handleMenuStats(ctx) {
     return;
   }
 
-  const message = `📊 СТАТИСТИКА
-Уровень: ${user.level}
-Всего XP: ${user.xp}
-Квестов выполнено: ${user.totalQuestsCompleted}
-Активных: ${activeQuests.length}`;
+  const message = `📊 <b>СТАТИСТИКА</b>
 
-  await ctx.reply(message, getMainMenuKeyboard());
+Уровень: <b>${user.level}</b> · ${esc(levelTitle(user.level))}
+Всего XP: <b>${user.xp}</b>
+Выполнено квестов: <b>${user.totalQuestsCompleted}</b>
+В работе: <b>${activeQuests.length}</b>`;
+
+  await ctx.reply(message, { parse_mode: 'HTML', ...getMainMenuKeyboard() });
   await ctx.answerCbQuery();
 }
 
@@ -223,19 +231,17 @@ async function handleMenuHome(ctx) {
     return;
   }
 
-  const xpProgress = Math.round((user.xp % 300) / 3);
-  const quoteOfDay = await getQuoteOfDay(); // Теперь await потому что async
+  const quoteOfDay = await getQuoteOfDay();
+  const xpBar = progressBar(user.xp % 300, 300);
+  const xpPercent = Math.round((user.xp % 300) / 3);
 
-  const message = `💬 ЦИТАТА ДНЯ:
-"${quoteOfDay}"
+  const message = `💬 <b>Цитата дня:</b>
+<i>"${esc(quoteOfDay)}"</i>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 ${esc(user.name)} · Уровень ${user.level} 💀
+XP: <code>${xpBar}</code> ${xpPercent}%`;
 
-👤 Твой статус:
-Уровень: ${user.level} | XP: ${user.xp}/${user.level * 300}
-Статус: ${user.name} 💀`;
-
-  await ctx.reply(message, getMainMenuKeyboard());
+  await ctx.reply(message, { parse_mode: 'HTML', ...getMainMenuKeyboard() });
   await ctx.answerCbQuery();
 }
 
@@ -283,26 +289,21 @@ async function handleMenuLeaderboard(ctx) {
       }
     });
 
-    // Показываем только топ-3
-    let message = '🏆 ЛИДЕРБОРД\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    let message = '🏆 <b>ЛИДЕРБОРД</b>\n\n';
     const medals = ['🥇', '🥈', '🥉'];
 
     allUsers.slice(0, 3).forEach((u, i) => {
-      const medal = medals[i];
-      message += `${medal} ${u.name.substring(0, 15)} - ${u.completed} квестов (🔥${u.streak} дн)\n`;
+      message += `${medals[i]} <b>${esc(u.name.substring(0, 15))}</b> — ${u.completed} квестов · 🔥${u.streak} дн\n`;
     });
 
-    // Показываем позицию пользователя
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += '\n';
     if (userPosition) {
-      message += `\n📍 Ты на ${userPosition} месте`;
+      message += `📍 Ты на <b>${userPosition} месте</b>`;
     } else {
-      message += `\n📍 Ты еще не в рейтинге`;
+      message += `📍 <i>Ты ещё не в рейтинге</i>`;
     }
-    
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-    await ctx.reply(message, getMainMenuKeyboard());
+    await ctx.reply(message, { parse_mode: 'HTML', ...getMainMenuKeyboard() });
   } catch (error) {
     logger.error('❌ Ошибка лидерборда:', error);
   }
