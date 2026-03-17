@@ -8,6 +8,7 @@ const { db } = require('../../db');
 const { getMainMenuKeyboard } = require('../keyboard');
 const { createQuest } = require('../quests');
 const { createOrUpdateUser, getUser } = require('../users');
+const { esc } = require('../../utils/format');
 
 /**
  * Регистрация обработчика текста
@@ -57,16 +58,14 @@ async function handleText(ctx, next) {
       return;
     }
     
-    const questMessage = `✨ НОВЫЙ КВЕСТ #${quest.questNumber}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const painStr = quest.painLevel ? `🔥 Уровень боли: <b>${quest.painLevel}/10</b>\n` : '';
+    const questMessage = `✨ <b>НОВЫЙ КВЕСТ #${quest.questNumber}</b>
+<i>${esc(quest.title)}</i>
 
-📜 ${quest.title}
+${esc(quest.story)}
 
-${quest.story}
-
-⭐ +${quest.xp} XP за выживание
-
-⏰ Выбери дедлайн:`;
+🏆 <b>+${quest.xp} XP</b>  ${painStr}
+⏰ <b>Выбери дедлайн:</b>`;
 
     const { Markup } = require('telegraf');
     const questKeyboard = Markup.inlineKeyboard([
@@ -83,7 +82,7 @@ ${quest.story}
       [Markup.button.callback(`🗑️ Удалить #${quest.questNumber}`, `delete_${quest.id}`)],
     ]);
 
-    await ctx.reply(questMessage, questKeyboard);
+    await ctx.reply(questMessage, { parse_mode: 'HTML', ...questKeyboard });
     
     try {
       await ctx.deleteMessage(waitMsg.message_id);

@@ -122,12 +122,11 @@ async function handleToday(ctx) {
       return;
     }
 
-    let message = `📋 КВЕСТЫ НА СЕГОДНЯ (${todayQuests.length})\n`;
-    message += `${'━'.repeat(40)}\n\n`;
+    let message = `📋 <b>КВЕСТЫ НА СЕГОДНЯ (${todayQuests.length})</b>\n\n`;
 
     for (const quest of todayQuests) {
-      message += `#${quest.questNumber} ${quest.title}\n`;
-      message += `+${quest.xp} XP\n\n`;
+      message += `#${quest.questNumber} 💀 <b>${esc(quest.title)}</b>\n`;
+      message += `⭐ <b>+${quest.xp} XP</b>\n\n`;
     }
 
     const { Markup } = require('telegraf');
@@ -140,7 +139,7 @@ async function handleToday(ctx) {
       ...getMainMenuKeyboard().reply_markup.inline_keyboard,
     ]);
 
-    await ctx.reply(message, keyboard);
+    await ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
   } catch (error) {
     logger.error('❌ Ошибка /today:', error);
     await ctx.reply('❌ Ошибка загрузки квестов', getMainMenuKeyboard());

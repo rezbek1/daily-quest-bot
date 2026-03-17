@@ -8,6 +8,7 @@ const { db } = require('../../db');
 const { completeQuest } = require('../quests');
 const { getMainMenuKeyboard } = require('../keyboard');
 const { TIMEZONES } = require('../timezone');
+const { esc, progressBar } = require('../../utils/format');
 
 /**
  * Регистрация callback обработчиков
@@ -49,20 +50,19 @@ async function handleQuestComplete(ctx) {
 
     const streakEmoji = result.newStreak >= 7 ? '🔥' : result.newStreak >= 3 ? '⚡' : '✨';
 
-    const completeText = `🎉 КВЕСТ #${result.questNumber} ВЫПОЛНЕН!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const xpBar = progressBar(result.newXp % 300, 300);
+    const completeText = `🎉 <b>КВЕСТ #${result.questNumber} ВЫПОЛНЕН!</b>
 
-📜 ${result.questTitle}
-"Ты пережил это. Это все, что имеет значения."
+<i>${esc(result.questTitle)}</i>
 
-✨ +${result.xpGained} XP за выживание!
+🏆 <b>+${result.xpGained} XP</b> заработано
 
-📊 Новый уровень: ${result.newLevel}
-   Опыт: ${result.newXp} XP
+Уровень: <b>${result.newLevel}</b>
+XP: <code>${xpBar}</code>
 
-${streakEmoji} Streak: ${result.newStreak} дней подряд!`;
+${streakEmoji} Streak: <b>${result.newStreak} дней</b>`;
 
-    await ctx.editMessageText(completeText);
+    await ctx.editMessageText(completeText, { parse_mode: 'HTML' });
     await ctx.answerCbQuery('✅ Квест выполнен!');
   } catch (error) {
     logger.error('❌ Ошибка при выполнении квеста:', error);
@@ -178,22 +178,21 @@ async function handleDeadline(ctx, deadlineType) {
 
     // Обновить сообщение
     const { Markup } = require('telegraf');
-    const updatedMessage = `✨ КВЕСТ #${quest.questNumber}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const painStr = quest.painLevel ? `\n🔥 Уровень боли: <b>${quest.painLevel}/10</b>` : '';
+    const updatedMessage = `✨ <b>КВЕСТ #${quest.questNumber}</b>
+<i>${esc(quest.title)}</i>
 
-📜 ${quest.title}
+${esc(quest.story)}
 
-${quest.story}
-
-⭐ +${quest.xp} XP за выживание
-⏰ Дедлайн: ${deadlineText}`;
+🏆 <b>+${quest.xp} XP</b>${painStr}
+📅 Дедлайн: <b>${deadlineText}</b>`;
 
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback(`✅ Выполнено! #${quest.questNumber}`, `done_${questId}`)],
       [Markup.button.callback(`🗑️ Удалить #${quest.questNumber}`, `delete_${questId}`)],
     ]);
 
-    await ctx.editMessageText(updatedMessage, keyboard);
+    await ctx.editMessageText(updatedMessage, { parse_mode: 'HTML', ...keyboard });
     await ctx.answerCbQuery(`⏰ ${deadlineText}`);
   } catch (error) {
     logger.error('Ошибка установки дедлайна:', error);

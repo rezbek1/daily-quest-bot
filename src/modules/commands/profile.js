@@ -137,7 +137,7 @@ async function handleLeaderboard(ctx) {
     });
 
     // Построить сообщение
-    let message = '🏆 ЛИДЕРБОРД\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    let message = '🏆 <b>ЛИДЕРБОРД</b>\n\n';
     const medals = ['🥇', '🥈', '🥉'];
 
     // Показать только топ-3
@@ -147,16 +147,14 @@ async function handleLeaderboard(ctx) {
     });
 
     // Показать позицию пользователя
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += '\n';
     if (userPosition) {
-      message += `\n📍 Ты на ${userPosition} месте`;
+      message += `📍 Ты на <b>${userPosition} месте</b>`;
     } else {
-      message += `\n📍 Ты еще не в рейтинге`;
+      message += `📍 <i>Ты ещё не в рейтинге</i>`;
     }
-    
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-    
-    await ctx.reply(message, getMainMenuKeyboard());
+
+    await ctx.reply(message, { parse_mode: 'HTML', ...getMainMenuKeyboard() });
   } catch (error) {
     logger.error('❌ Ошибка /leaderboard:', error);
     await ctx.reply('❌ Ошибка загрузки лидерборда', getMainMenuKeyboard());
