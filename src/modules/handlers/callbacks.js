@@ -70,10 +70,12 @@ ${streakEmoji} Streak: <b>${result.newStreak} дней</b>`;
     const botUsername = ctx.botInfo?.username;
     const shareUrl = `https://t.me/share/url?url=https://t.me/${botUsername}&text=${encodeURIComponent('Я выжил в бизнес-аду. Теперь твоя очередь. Попробуй Daily Quest Bot — если не боишься.')}`;
 
-    await ctx.reply(
-      `☠️ <b>Ты выжил.</b>\n\nНо твои друзья — ещё нет.\n\n<i>Отправь им бота. Помоги им выжить.</i>`,
-      { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.url('☠️ Спасти друзей', shareUrl)]]) }
-    );
+    const SHARE_PHOTO_ID = 'AgACAgQAAxkBAAIGoGm459ZJRtF_cvUuw0Qofj5vlWcTAAKDDWsbKzDIUbyhDVc7b2ndAQADAgADeQADOgQ';
+    await ctx.replyWithPhoto(SHARE_PHOTO_ID, {
+      caption: `☠️ <b>Ты выжил.</b>\n\nНо твои друзья — ещё нет.\n\n<i>Отправь им бота. Помоги им выжить.</i>`,
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([[Markup.button.url('☠️ Спасти друзей', shareUrl)]]),
+    });
   } catch (error) {
     logger.error('❌ Ошибка при выполнении квеста:', error);
     await ctx.answerCbQuery('❌ Ошибка', true);

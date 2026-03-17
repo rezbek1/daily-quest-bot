@@ -41,13 +41,6 @@ try {
   handlersModule.register(bot);
   adminModule.register(bot);
   
-  // TEMP: поймать file_id пересланного фото
-  bot.on('photo', (ctx) => {
-    const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-    logger.info(`📸 PHOTO FILE_ID: ${fileId}`);
-    ctx.reply(`📸 file_id:\n<code>${fileId}</code>`, { parse_mode: 'HTML' });
-  });
-
   logger.info('✅ Все модули зарегистрированы');
 } catch (error) {
   logger.error('❌ Ошибка регистрации модулей:', error);
