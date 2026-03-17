@@ -149,24 +149,24 @@ async function handleMenuStats(ctx) {
 }
 
 /**
- * ⚙️ Настройки
+ * Построить сообщение и клавиатуру настроек
  */
-async function handleMenuSettings(ctx) {
-  const userId = ctx.from.id;
-  const user = await getUser(userId);
-
-  const shabbatEnabled = user?.shabbatMode || user?.settings?.shabbatMode || false;
+function buildSettingsView(shabbatEnabled, reminderTime, timezone) {
+  const { Markup } = require('telegraf');
   const shabbatStatus = shabbatEnabled ? '✅ ВКЛ' : '❌ ВЫКЛ';
 
-  const settingsMessage = `⚙️ НАСТРОЙКИ УРОВНЯ БОЛИ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const message = `⚙️ <b>Настройки уровня боли</b>
 
-Выбери уровень сарказма и время напоминаний:
+😅 <b>Лёгкий</b> — мягкий сарказм
+💀 <b>Чёрный</b> — без пощады
+🔥 <b>Венчурное</b> — "ты обязан успеть"
 
-🕯️ Режим Шабата: ${shabbatStatus}
-(Без уведомлений в Шабат)`;
+⏰ Текущее время напоминания: <b>${reminderTime || '19:00'}</b>
+🌍 Часовой пояс: <b>${timezone || 'Europe/Moscow'}</b>
 
-  const { Markup } = require('telegraf');
+🕯️ Режим Шабата: <b>${shabbatStatus}</b>
+<i>(Без уведомлений в Шабат)</i>`;
+
   const keyboard = Markup.inlineKeyboard([
     [
       Markup.button.callback('😅 Лёгкий', 'set_pain_light'),
@@ -188,7 +188,24 @@ async function handleMenuSettings(ctx) {
     ...getMainMenuKeyboard().reply_markup.inline_keyboard,
   ]);
 
-  await ctx.reply(settingsMessage, keyboard);
+  return { message, keyboard };
+}
+
+/**
+ * ⚙️ Настройки
+ */
+async function handleMenuSettings(ctx) {
+  const userId = ctx.from.id;
+  const user = await getUser(userId);
+
+  const shabbatEnabled = user?.shabbatMode || user?.settings?.shabbatMode || false;
+  const { message, keyboard } = buildSettingsView(
+    shabbatEnabled,
+    user?.settings?.reminderTime,
+    user?.settings?.timezone
+  );
+
+  await ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
   await ctx.answerCbQuery();
 }
 
@@ -196,26 +213,25 @@ async function handleMenuSettings(ctx) {
  * ❓ Помощь
  */
 async function handleMenuHelp(ctx) {
-  const helpMessage = `❓ СПРАВКА ПО КОМАНДАМ
+  const helpMessage = `❓ <b>Справка по командам</b>
 
-📝 УПРАВЛЕНИЕ:
-/addtask - создать квест
-/quests - все квесты
-/today - квесты на сегодня
+📝 <b>Управление квестами:</b>
+/addtask — создать квест
+/quests — все активные квесты
+/today — квесты на сегодня
 
-👤 ПРОФИЛЬ:
-/profile - профиль
-/stats - статистика
-/leaderboard - лидерборд
+👤 <b>Профиль:</b>
+/profile — твой профиль
+/stats — статистика
+/leaderboard — лидерборд
 
-🕯️ ШАБАТ:
-/shabbat_info - время Шабата
+🕯️ <b>Шабат:</b>
+/shabbat_info — когда начинается Шабат
 
-💬 ДРУГОЕ:
-/help - эта справка
-/feedback - обратная связь`;
+💬 <b>Другое:</b>
+/feedback — обратная связь`;
 
-  await ctx.reply(helpMessage, getMainMenuKeyboard());
+  await ctx.reply(helpMessage, { parse_mode: 'HTML', ...getMainMenuKeyboard() });
   await ctx.answerCbQuery();
 }
 
@@ -385,38 +401,12 @@ async function handleToggleShabbat(ctx) {
     await ctx.answerCbQuery(`🕯️ Режим Шабата ${statusText}`, true);
 
     // Показываем обновлённое меню настроек
-    const shabbatStatus = newState ? '✅ ВКЛ' : '❌ ВЫКЛ';
-    const settingsMessage = `⚙️ НАСТРОЙКИ УРОВНЯ БОЛИ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Выбери уровень сарказма и время напоминаний:
-
-🕯️ Режим Шабата: ${shabbatStatus}
-(Без уведомлений в Шабат)`;
-
-    const { Markup } = require('telegraf');
-    const keyboard = Markup.inlineKeyboard([
-      [
-        Markup.button.callback('😅 Лёгкий', 'set_pain_light'),
-        Markup.button.callback('💀 Чёрный', 'set_pain_black'),
-        Markup.button.callback('🔥 Венчурное', 'set_pain_venture'),
-      ],
-      [
-        Markup.button.callback('08:00', 'set_time_08'),
-        Markup.button.callback('12:00', 'set_time_12'),
-        Markup.button.callback('17:00', 'set_time_17'),
-      ],
-      [
-        Markup.button.callback('19:00', 'set_time_19'),
-        Markup.button.callback('21:00', 'set_time_21'),
-        Markup.button.callback('23:00', 'set_time_23'),
-      ],
-      [Markup.button.callback('🌍 Часовые пояса', 'select_timezone')],
-      [Markup.button.callback(`🕯️ Шабат: ${shabbatStatus}`, 'toggle_shabbat')],
-      ...getMainMenuKeyboard().reply_markup.inline_keyboard,
-    ]);
-
-    await ctx.reply(settingsMessage, keyboard);
+    const { message, keyboard } = buildSettingsView(
+      newState,
+      user?.settings?.reminderTime,
+      user?.settings?.timezone
+    );
+    await ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
   } catch (error) {
     logger.error('Ошибка переключения Шабата:', error);
     await ctx.answerCbQuery('❌ Ошибка', true);
