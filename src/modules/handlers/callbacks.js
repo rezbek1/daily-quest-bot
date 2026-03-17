@@ -64,6 +64,16 @@ ${streakEmoji} Streak: <b>${result.newStreak} дней</b>`;
 
     await ctx.editMessageText(completeText, { parse_mode: 'HTML' });
     await ctx.answerCbQuery('✅ Квест выполнен!');
+
+    // Вирусное сообщение — поделиться ботом
+    const { Markup } = require('telegraf');
+    const botUsername = ctx.botInfo?.username;
+    const shareUrl = `https://t.me/share/url?url=https://t.me/${botUsername}&text=${encodeURIComponent('Я выжил в бизнес-аду. Теперь твоя очередь. Попробуй Daily Quest Bot — если не боишься.')}`;
+
+    await ctx.reply(
+      `☠️ <b>Ты выжил.</b>\n\nНо твои друзья — ещё нет.\n\n<i>Отправь им бота. Помоги им выжить.</i>`,
+      { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.url('☠️ Спасти друзей', shareUrl)]]) }
+    );
   } catch (error) {
     logger.error('❌ Ошибка при выполнении квеста:', error);
     await ctx.answerCbQuery('❌ Ошибка', true);
