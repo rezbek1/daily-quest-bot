@@ -38,13 +38,13 @@ async function handleAddTask(ctx) {
       return;
     }
 
+    const painStr = quest.painLevel ? `🔥 Уровень боли: <b>${quest.painLevel}/10</b>\n` : '';
     const questMessage = `✨ <b>НОВЫЙ КВЕСТ #${quest.questNumber}</b>
-
-📜 <b>${esc(quest.title)}</b>
+<i>${esc(quest.title)}</i>
 
 ${esc(quest.story)}
 
-⭐ <b>+${quest.xp} XP</b> за выживание`;
+🏆 <b>+${quest.xp} XP</b>  ${painStr}`;
     
     const { Markup } = require('telegraf');
     const questKeyboard = Markup.inlineKeyboard([

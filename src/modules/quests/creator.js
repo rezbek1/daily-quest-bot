@@ -7,7 +7,7 @@ const axios = require('axios');
 const logger = require('../../logger');
 const config = require('../../config');
 const { db } = require('../../db');
-const prompts = require('./prompts');
+const { PROMPTS, getPainLevel } = require('./prompts');
 
 /**
  * Создать квест
@@ -29,6 +29,7 @@ async function createQuest(userId, taskDescription) {
 
     // Рассчитать XP в зависимости от длины описания
     const xp = Math.min(10 + Math.floor(taskDescription.length / 10), 50);
+    const painLevel = getPainLevel(theme);
 
     // Создать квест в БД
     const questData = {
@@ -37,6 +38,7 @@ async function createQuest(userId, taskDescription) {
       title: taskDescription,
       story: story,
       xp: xp,
+      painLevel: painLevel,
       theme: theme,
       completed: false,
       createdAt: new Date(),
@@ -54,6 +56,7 @@ async function createQuest(userId, taskDescription) {
       title: questData.title,
       story: questData.story,
       xp: questData.xp,
+      painLevel: questData.painLevel,
     };
   } catch (error) {
     logger.error('❌ Ошибка создания квеста:', error);
@@ -66,7 +69,7 @@ async function createQuest(userId, taskDescription) {
  */
 async function generateQuestStory(taskDescription, theme = 'black') {
   try {
-    const promptTemplate = prompts.PROMPTS[theme] || prompts.PROMPTS.black;
+    const promptTemplate = PROMPTS[theme] || PROMPTS.black;
     const prompt = promptTemplate.replace('{TASK}', taskDescription);
 
     const response = await axios.post(
