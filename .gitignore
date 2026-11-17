@@ -38,3 +38,8 @@ coverage/
 *.pid
 *.seed
 *.pid.lock
+
+# Firebase data exports (user data)
+exports/
+.env.*
+!.env.example
